@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+// import botPic from 'public/iicon.svg'; {/* importa la imagen */ }
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +35,7 @@ import {
 } from "lucide-react"
 import { Mic } from "lucide-react"
 import { FloatingChatButton } from "@/components/FloatingChatButton"
+import Image from "next/image"
 
 interface ChatBotProps {
   colaborador: Colaborador
@@ -40,9 +43,9 @@ interface ChatBotProps {
   onLogout: () => void
 }
 
-type ChatStep = 
-  | "welcome" 
-  | "show-tasks" 
+type ChatStep =
+  | "welcome"
+  | "show-tasks"
   | "ask-task-selection"
   | "loading-pendientes"
   | "show-pendientes"
@@ -88,7 +91,9 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [theme, setTheme] = useState<"light" | "dark">("light")
   const [isTyping, setIsTyping] = useState(false)
+  const [showShadow, setShowShadow] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const welcomeSentRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -98,7 +103,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
   const [currentTime, setCurrentTime] = useState<string>("")
   const [currentDescription, setCurrentDescription] = useState<string>("")
   const [isRecording, setIsRecording] = useState(false);
-const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
 
   const HORA_INICIO = 9
   const HORA_FIN = 24
@@ -109,41 +114,54 @@ const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     document.documentElement.classList.toggle("dark", isDark)
   }, [])
 
-const startRecording = async () => {
-  if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-    alert("Tu navegador no soporta reconocimiento de voz");
-    return;
-  }
+  useEffect(() => {
+    const handleScroll = () => {
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current
+        setShowShadow(scrollTop + clientHeight < scrollHeight - 20)
+      }
+    }
 
-  if (isRecording) {
-    // Detener grabación
-    mediaRecorder?.stop();
-    return;
-  }
+    const container = messagesContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+      return () => container.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
 
-  setIsRecording(true);
-  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  const recognition = new SpeechRecognition();
-  recognition.lang = "es-MX";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
+  const startRecording = async () => {
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      alert("Tu navegador no soporta reconocimiento de voz");
+      return;
+    }
 
-  recognition.start();
+    if (isRecording) {
+      mediaRecorder?.stop();
+      return;
+    }
 
-  recognition.onresult = (event: any) => {
-    const transcript = event.results[0][0].transcript;
-    setUserInput(transcript);
+    setIsRecording(true);
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "es-MX";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.start();
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setUserInput(transcript);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+
+    recognition.onerror = () => {
+      setIsRecording(false);
+    };
   };
-
-  recognition.onend = () => {
-    setIsRecording(false);
-  };
-
-  recognition.onerror = () => {
-    setIsRecording(false);
-  };
-};
-
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light"
@@ -156,21 +174,21 @@ const startRecording = async () => {
       return false
     }
     if (!actividad.dueStart && !actividad.dueEnd) return false
-    
+
     try {
       const startDate = new Date(actividad.dueStart || actividad.dueEnd)
       const endDate = new Date(actividad.dueEnd || actividad.dueStart)
-      
+
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-      
+
       const startHour = startDate.getHours()
       const endHour = endDate.getHours()
-      
-      const isDuranteHorario = 
+
+      const isDuranteHorario =
         (startHour >= HORA_INICIO && startHour < HORA_FIN) ||
         (endHour > HORA_INICIO && endHour <= HORA_FIN) ||
         (startHour < HORA_INICIO && endHour > HORA_FIN)
-      
+
       return isDuranteHorario
     } catch (error) {
       return false
@@ -212,7 +230,7 @@ const startRecording = async () => {
   useEffect(() => {
     if (!welcomeSentRef.current) {
       welcomeSentRef.current = true
-      
+
       setTimeout(() => {
         addMessageWithTyping("bot", `¡Hola ${displayName}! 👋 Soy tu asistente para registro de actividades.`, 500)
         setTimeout(() => {
@@ -224,21 +242,36 @@ const startRecording = async () => {
 
   const showTaskList = async () => {
     const taskList = (
-      <div className="space-y-2 mt-3">
+      <div className="space-y-3 mt-3">
         {actividadesEnHorario.map((task, idx) => (
-          <div key={task.id} className="group p-3 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20 rounded-xl border border-violet-100 dark:border-violet-900/30 hover:shadow-md transition-all duration-300">
+          <div key={task.id} className={`group p-4 rounded-xl transition-all duration-300 ${theme === "dark"
+            ? "bg-[#1b1b1d] hover:bg-[#252527]"
+            : "bg-gray-50 hover:bg-gray-100"
+            }`}>
             <div className="flex items-start gap-3">
-              <Badge variant="outline" className="shrink-0 bg-white dark:bg-slate-800 border-violet-300 dark:border-violet-700">
+              <Badge className={`shrink-0 ${theme === "dark"
+                ? "bg-[#6841ea] text-white"
+                : "bg-[#6841ea] text-white"
+                }`}>
                 {idx + 1}
               </Badge>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm text-slate-900 dark:text-white">{task.titulo}</p>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  <Badge variant="secondary" className="text-xs bg-slate-200 dark:bg-slate-700">
-                    {task.status}
+                <p className={`font-semibold text-sm mb-2 ${theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}>
+                  {task.titulo}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className={`text-xs ${theme === "dark"
+                    ? "bg-gray-800 text-gray-300"
+                    : "bg-gray-200 text-gray-700"
+                    }`}>
+                    {task.status || "Sin estado"}
                   </Badge>
                   {task.prioridad && task.prioridad !== "Sin prioridad" && (
-                    <Badge className="text-xs bg-gradient-to-r from-violet-600 to-blue-600">
+                    <Badge className={`text-xs ${theme === "dark"
+                      ? "bg-[#6841ea] text-white"
+                      : "bg-[#6841ea] text-white"
+                      }`}>
                       {task.prioridad}
                     </Badge>
                   )}
@@ -249,17 +282,18 @@ const startRecording = async () => {
         ))}
       </div>
     )
-    
+
     await addMessageWithTyping("bot", (
       <div>
-        <p className="mb-2 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+        <p className={`mb-3 flex items-center gap-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+          }`}>
+          <Sparkles className="w-4 h-4 text-[#6841ea]" />
           Tienes <strong>{actividadesEnHorario.length}</strong> tarea{actividadesEnHorario.length !== 1 ? "s" : ""} para hoy (9:00 AM - 12:00 AM):
         </p>
         {taskList}
       </div>
     ))
-    
+
     setTimeout(async () => {
       await addMessageWithTyping("bot", "Escribe los números de las tareas que trabajarás hoy, separados por comas. Ejemplo: 1, 2, 3")
       setStep("ask-task-selection")
@@ -281,7 +315,7 @@ const startRecording = async () => {
 
     addMessage("user", input)
     addMessage("system", (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 text-[#6841ea]">
         <CheckCircle2 className="w-4 h-4" />
         Seleccionadas: {selected.map(t => t.titulo).join(", ")}
       </div>
@@ -308,12 +342,13 @@ const startRecording = async () => {
     }
 
     await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+      <div className={`flex items-center gap-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+        }`}>
+        <Sparkles className="w-4 h-4 text-[#6841ea]" />
         Perfecto! Trabajaremos en: <strong>"{task.titulo}"</strong>
       </div>
     ))
-    
+
     try {
       const response = await fetch(
         `https://wlserver-production.up.railway.app/api/actividades/${task.id}`
@@ -325,7 +360,7 @@ const startRecording = async () => {
           pendientes?: Pendiente[]
         }
       } = await response.json()
-      
+
       if (result.success && result.data?.pendientes) {
         setCurrentTaskPendientes(result.data.pendientes)
 
@@ -343,17 +378,29 @@ const startRecording = async () => {
 
   const showPendientesList = async (pendientes: any[]) => {
     const pendientesList = (
-      <div className="space-y-2 mt-3">
+      <div className="space-y-3 mt-3">
         {pendientes.map((p, idx) => (
-          <div key={p.id || idx} className="p-3 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800/50 rounded-lg flex gap-3 border border-slate-200 dark:border-slate-700 hover:shadow-sm transition-all">
-            <Badge variant="outline" className="shrink-0 bg-white dark:bg-slate-900">
+          <div key={p.id || idx} className={`p-4 rounded-lg flex gap-3 ${theme === "dark"
+            ? "bg-[#1b1b1d] hover:bg-[#252527]"
+            : "bg-gray-50 hover:bg-gray-100"
+            }`}>
+            <Badge className={`shrink-0 ${theme === "dark"
+              ? "bg-[#6841ea] text-white"
+              : "bg-[#6841ea] text-white"
+              }`}>
               {idx + 1}
             </Badge>
-            <span className={p.checked ? "line-through text-muted-foreground flex-1" : "flex-1"}>
+            <span className={`${p.checked ? "line-through" : ""} flex-1 ${theme === "dark"
+              ? p.checked ? "text-gray-500" : "text-gray-300"
+              : p.checked ? "text-gray-400" : "text-gray-700"
+              }`}>
               {p.text}
             </span>
             {p.checked && (
-              <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+              <Badge className={`text-xs ${theme === "dark"
+                ? "bg-green-900 text-green-300"
+                : "bg-green-100 text-green-700"
+                }`}>
                 ✓
               </Badge>
             )}
@@ -361,14 +408,17 @@ const startRecording = async () => {
         ))}
       </div>
     )
-    
+
     await addMessageWithTyping("bot", (
       <div>
-        <p className="mb-2">Esta tarea tiene <strong>{pendientes.length}</strong> pendiente{pendientes.length !== 1 ? "s" : ""}:</p>
+        <p className={`mb-3 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+          }`}>
+          Esta tarea tiene <strong>{pendientes.length}</strong> pendiente{pendientes.length !== 1 ? "s" : ""}:
+        </p>
         {pendientesList}
       </div>
     ))
-    
+
     setTimeout(async () => {
       await addMessageWithTyping("bot", "Escribe los números de los pendientes en los que trabajaste, separados por comas. O escribe '0' si trabajaste en la tarea en general.")
       setStep("ask-pendiente-selection")
@@ -384,10 +434,10 @@ const startRecording = async () => {
 
   const handlePendienteSelection = (input: string) => {
     addMessage("user", input)
-    
+
     if (input.trim() === "0") {
       addMessage("system", (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-[#6841ea]">
           <CheckCircle2 className="w-4 h-4" />
           Trabajaste en la tarea en general
         </div>
@@ -395,7 +445,7 @@ const startRecording = async () => {
       setSelectedPendienteIds([])
     } else {
       const numbers = input.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= currentTaskPendientes.length)
-      
+
       if (numbers.length === 0) {
         addMessage("bot", "No reconocí números válidos. Escribe los números de los pendientes o '0' para ninguno.")
         return
@@ -403,16 +453,16 @@ const startRecording = async () => {
 
       const selected = numbers.map(n => currentTaskPendientes[n - 1].id || currentTaskPendientes[n - 1].text)
       setSelectedPendienteIds(selected)
-      
+
       const selectedNames = numbers.map(n => currentTaskPendientes[n - 1].text).join(", ")
       addMessage("system", (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-[#6841ea]">
           <CheckCircle2 className="w-4 h-4" />
           Pendientes: {selectedNames}
         </div>
       ))
     }
-    
+
     setTimeout(() => {
       askForTime()
     }, 500)
@@ -420,8 +470,9 @@ const startRecording = async () => {
 
   const askForTime = async () => {
     await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2">
-        <Clock className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+      <div className={`flex items-center gap-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+        }`}>
+        <Clock className="w-4 h-4 text-[#6841ea]" />
         ¿Cuántos minutos trabajaste en esta tarea?
       </div>
     ))
@@ -430,7 +481,7 @@ const startRecording = async () => {
 
   const handleTimeInput = async (input: string) => {
     const minutes = parseInt(input.trim())
-    
+
     if (isNaN(minutes) || minutes <= 0) {
       addMessage("bot", "Por favor escribe un número válido de minutos.")
       return
@@ -438,7 +489,7 @@ const startRecording = async () => {
 
     setCurrentTime(input)
     addMessage("user", `${minutes} minutos`)
-    
+
     setTimeout(async () => {
       await addMessageWithTyping("bot", "Describe brevemente qué trabajaste en esta tarea:")
       setStep("ask-description")
@@ -453,7 +504,7 @@ const startRecording = async () => {
 
     setCurrentDescription(input)
     addMessage("user", input)
-    
+
     const report: TaskReport = {
       taskId: currentTask.id,
       titulo: currentTask.titulo,
@@ -464,12 +515,12 @@ const startRecording = async () => {
 
     setTaskReports((prev) => [...prev, report])
     addMessage("system", (
-      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+      <div className="flex items-center gap-2 text-[#6841ea]">
         <CheckCircle2 className="w-4 h-4" />
         <strong>Tarea registrada exitosamente</strong>
       </div>
     ))
-    
+
     setTimeout(async () => {
       if (currentTaskIndex < selectedTasks.length - 1) {
         await addMessageWithTyping("bot", `Te quedan ${selectedTasks.length - currentTaskIndex - 1} tarea${selectedTasks.length - currentTaskIndex - 1 !== 1 ? "s" : ""}. ¿Continuamos con la siguiente? (sí/no)`)
@@ -478,7 +529,7 @@ const startRecording = async () => {
         finishAllTasks()
       }
     }, 500)
-    
+
     setCurrentTime("")
     setCurrentDescription("")
     setSelectedPendienteIds([])
@@ -487,7 +538,7 @@ const startRecording = async () => {
   const handleConfirmNext = (input: string) => {
     const response = input.toLowerCase().trim()
     addMessage("user", input)
-    
+
     if (response === "si" || response === "sí" || response === "s") {
       setCurrentTaskIndex((prev) => prev + 1)
       setTimeout(() => {
@@ -500,8 +551,9 @@ const startRecording = async () => {
 
   const finishAllTasks = async () => {
     await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2">
-        <PartyPopper className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+      <div className={`flex items-center gap-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+        }`}>
+        <PartyPopper className="w-5 h-5 text-[#6841ea]" />
         ¡Excelente trabajo! Has registrado <strong>{taskReports.length}</strong> tarea{taskReports.length !== 1 ? "s" : ""} con un total de <strong>{taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos</strong>.
       </div>
     ))
@@ -514,7 +566,7 @@ const startRecording = async () => {
   const handleSendConfirmation = async (input: string) => {
     const response = input.toLowerCase().trim()
     addMessage("user", input)
-    
+
     if (response === "si" || response === "sí" || response === "s") {
       await sendReport()
     } else {
@@ -525,7 +577,8 @@ const startRecording = async () => {
   const sendReport = async () => {
     setStep("sending")
     addMessage("system", (
-      <div className="flex items-center gap-2">
+      <div className={`flex items-center gap-2 ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+        }`}>
         <Loader2 className="w-4 h-4 animate-spin" />
         Enviando reporte...
       </div>
@@ -542,14 +595,14 @@ const startRecording = async () => {
       await sendReporte(reporte)
       setShowSuccessDialog(true)
       addMessage("system", (
-        <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+        <div className="flex items-center gap-2 text-[#6841ea]">
           <CheckCircle2 className="w-4 h-4" />
           <strong>Reporte enviado exitosamente</strong>
         </div>
       ))
     } catch (error) {
       addMessage("system", (
-        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+        <div className="flex items-center gap-2 text-red-500">
           <AlertCircle className="w-4 h-4" />
           Error: {error instanceof Error ? error.message : "Error desconocido"}
         </div>
@@ -599,223 +652,251 @@ const startRecording = async () => {
   ].includes(step)
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Fondo decorativo */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 transition-colors duration-500">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-violet-400/10 to-blue-400/10 dark:from-violet-600/5 dark:to-blue-600/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-400/10 to-violet-400/10 dark:from-blue-600/5 dark:to-violet-600/5 rounded-full blur-3xl" />
-        <div className="absolute inset-0 opacity-20 dark:opacity-5" style={{
-          backgroundImage: `radial-gradient(circle, rgba(139, 92, 246, 0.1) 1px, transparent 1px)`,
-          backgroundSize: "32px 32px"
-        }} />
-      </div>
+    <div className={`min-h-screen font-['Arial'] ${theme === "dark" ? "bg-[#202020] text-white" : "bg-white text-gray-900"
+      }`}>
+      {/* Header fijo SIN bordes */}
+      <div className={`fixed top-0 left-0 right-0 z-50 ${theme === "dark"
+        ? "bg-[#1b1b1d]"
+        : "bg-white"
+        }`}>
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${theme === "dark" ? "bg-[#252527]" : "bg-gray-100"
+                  }`}
+              >
+                {/* <Image
+                  src={botPic}
+                  alt="Bot"
+                  width={20}
+                  height={20}
+                  className="rounded-full"
+                /> */}
+              </div>
 
-      {/* Botón de tema */}
-      <div className="absolute top-4 right-4 z-50">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={toggleTheme}
-          className="rounded-full w-10 h-10 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-violet-200 dark:border-violet-800 hover:scale-110 transition-all duration-300"
-        >
-          {theme === "light" ? (
-            <Moon className="w-4 h-4 text-violet-700 dark:text-violet-300" />
-          ) : (
-            <Sun className="w-4 h-4 text-amber-500" />
-          )}
-        </Button>
-      </div>
+              <div>
+                <h1 className="text-lg font-bold">Asistente de Tareas</h1>
+                <p className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"
+                  }`}>
+                  {displayName}
+                </p>
+              </div>
+            </div>
 
-      <div className="relative p-2 sm:p-4 max-w-full sm:max-w-4xl mx-auto space-y-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTheme}
+                className={`w-9 h-9 rounded-full flex items-center justify-center ${theme === "dark"
+                  ? "bg-[#252527] hover:bg-[#303032]"
+                  : "bg-gray-100 hover:bg-gray-200"
+                  }`}
+              >
+                {theme === "light" ? (
+                  <Moon className="w-4 h-4 text-gray-700" />
+                ) : (
+                  <Sun className="w-4 h-4 text-gray-300" />
+                )}
+              </button>
 
-   {/* Header */}
-<Card className="border-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-xl overflow-hidden">
-  <div className="h-1 bg-gradient-to-r from-violet-500 via-blue-500 to-violet-500 animate-gradient bg-[length:200%_auto]" />
-  <CardHeader className="flex flex-row items-center justify-between py-0"> {/* padding reducido */}
-    <div className="flex flex-col sm:flex-row items-center sm:gap-3 gap-1">
-      <div className="relative group">
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-blue-500 rounded-full blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-        <div className="relative w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-violet-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
-          <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" /> {/* ícono más pequeño */}
-        </div>
-      </div>
-      <div>
-        <CardTitle className="text-lg sm:text-xl bg-gradient-to-r from-violet-600 to-blue-600 dark:from-violet-400 dark:to-blue-400 bg-clip-text text-transparent">
-          Asistente de Tareas
-        </CardTitle>
-        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">{displayName}</p>
-      </div>
-    </div>
-    <Button 
-      variant="ghost" 
-      size="sm" 
-      onClick={() => setShowLogoutDialog(true)}
-      className="hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-    >
-      <LogOut className="w-4 h-4 mr-1" /> {/* icono más compacto */}
-      Salir
-    </Button>
-  </CardHeader>
-</Card>
-
-{/* Chat Area */}
-<Card className="flex flex-col border-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-xl w-full">
-  {/* Mensajes */}
-  <div
-    className="overflow-y-auto p-2 sm:p-3 min-h-[50vh]"
-    ref={scrollRef}
-  >
-    <div className="space-y-2">
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`flex animate-in slide-in-from-bottom-2 duration-300 ${
-            message.type === "user" ? "justify-end" : "justify-start"
-          }`}
-        >
-          <div
-            className={`max-w-[80%] rounded-2xl px-3 py-2 shadow-sm text-sm ${
-              message.type === "bot"
-                ? "bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/50 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
-                : message.type === "user"
-                  ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white shadow-md shadow-violet-300/50 dark:shadow-violet-900/50"
-                  : "bg-gradient-to-r from-blue-50 to-violet-50 dark:from-blue-950/30 dark:to-violet-950/30 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-900"
-            }`}
-          >
-            {message.content}
-          </div>
-        </div>
-      ))}
-
-      {/* Indicador de escritura */}
-      {isTyping && (
-        <div className="flex justify-start animate-in slide-in-from-bottom-2 duration-300">
-          <div className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/50 rounded-2xl px-2 py-1.5 border border-slate-200 dark:border-slate-700">
-            <div className="flex gap-1">
-              <div className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              <button
+                onClick={() => setShowLogoutDialog(true)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium ${theme === "dark"
+                  ? "bg-[#252527] hover:bg-[#303032] text-gray-300"
+                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  }`}
+              >
+                <LogOut className="w-4 h-4 mr-2 inline" />
+                Salir
+              </button>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  </div>
+      </div>
 
-  {/* Input Area con Micrófono */}
-<div className="p-2 border-t border-violet-200 dark:border-violet-900/50 bg-gradient-to-r from-violet-50/30 to-blue-50/30 dark:from-violet-950/20 dark:to-blue-950/20">
-  <form onSubmit={handleUserInput} className="flex gap-2 items-center">
-    <Input
-      ref={inputRef}
-      type="text"
-      placeholder={
-        canUserType
-          ? "Escribe tu respuesta..."
-          : "Espera a que el asistente termine..."
-      }
-      value={userInput}
-      onChange={(e) => setUserInput(e.target.value)}
-      disabled={!canUserType}
-      className="flex-1 h-10 sm:h-11 border-2 border-violet-200 dark:border-violet-800 focus:border-violet-500 dark:focus:border-violet-500 rounded-lg bg-white dark:bg-slate-800 px-3 text-sm sm:text-base"
-    />
-{/* Botón de micrófono mejorado */}
-<Button
-  type="button"
-  onClick={startRecording}
-  disabled={!canUserType}
-  className={`h-10 sm:h-12 w-12 sm:w-14 p-0 bg-gradient-to-br from-green-500 to-green-600 
-              hover:from-green-600 hover:to-green-700 active:scale-95 rounded-full 
-              shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center
-              ${isRecording ? "animate-pulse shadow-[0_0_20px_rgba(16,185,129,0.6)]" : ""}`}
->
-  {isRecording ? (
-    <Loader2 className="w-5 h-5 animate-spin text-white" />
-  ) : (
-    <Mic className="w-5 h-5 text-white" />
-  )}
-</Button>
-
-
-{/* Botón de enviar */}
-<Button 
-  type="submit" 
-  disabled={!canUserType || !userInput.trim()}
-  className="h-10 sm:h-11 px-4 sm:px-5 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 disabled:opacity-50 flex items-center justify-center"
->
-  <Send className="w-4 h-4" />
-</Button>
-
-  </form>
-</div>
-
-</Card>
-
-
-
-     {taskReports.length > 0 && (
-  <Card className="border-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500">
-    <div className="h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-green-500 animate-gradient bg-[length:200%_auto]" />
-    
-    <CardHeader className="py-2">
-      <CardTitle className="text-sm flex items-center gap-2">
-        <FileText className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-        Resumen del Reporte
-      </CardTitle>
-    </CardHeader>
-    
-    <CardContent className="py-1 pb-3">
-      <div className="space-y-1.5">
-        {taskReports.map((report, idx) => (
+      {/* Contenido con padding superior para el header fijo */}
+      <div className="pt-24 pb-24 px-4 max-w-4xl mx-auto">
+        {/* Contenedor de mensajes con scroll y sombra con mask */}
+        <div className="relative">
           <div
-            key={report.taskId}
-            className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/20 dark:to-blue-950/20 border border-violet-100 dark:border-violet-900/30"
+            ref={messagesContainerRef}
+            className={`overflow-y-auto max-h-[calc(100vh-240px)] rounded-lg ${theme === "dark"
+              ? "bg-[#1b1b1d]"
+              : "bg-white"
+              }`}
           >
-            <span className="truncate flex-1 font-medium">
-              {idx + 1}. {report.titulo}
-            </span>
-            <Badge className="bg-gradient-to-r from-violet-600 to-blue-600 ml-1 text-xs px-2 py-0.5">
-              {report.tiempoTrabajado} min
-            </Badge>
+            <div className="p-4 space-y-3" ref={scrollRef}>
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex animate-in slide-in-from-bottom-2 duration-300 ${message.type === "user" ? "justify-end" : "justify-start"
+                    }`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${message.type === "bot"
+                      ? theme === "dark"
+                        ? "bg-[#252527] text-white"
+                        : "bg-gray-100 text-gray-900"
+                      : message.type === "user"
+                        ? "bg-[#6841ea] text-white"
+                        : theme === "dark"
+                          ? "bg-[#252527] text-gray-300"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                  >
+                    {message.content}
+                  </div>
+                </div>
+              ))}
+
+              {/* Indicador de escritura */}
+              {isTyping && (
+                <div className="flex justify-start animate-in slide-in-from-bottom-2 duration-300">
+                  <div className={`rounded-lg px-3 py-2 ${theme === "dark"
+                    ? "bg-[#252527]"
+                    : "bg-gray-100"
+                    }`}>
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-[#6841ea] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-2 h-2 bg-[#6841ea] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <div className="w-2 h-2 bg-[#6841ea] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        ))}
 
-        <div className="flex items-center justify-between font-semibold pt-2 px-2 text-sm border-t border-violet-200 dark:border-violet-800">
-          <span className="flex items-center gap-1.5">
-            <Clock className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-            Total:
-          </span>
-          <span className="text-violet-600 dark:text-violet-400">
-            {taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos
-          </span>
+
         </div>
-      </div>
-    </CardContent>
-  </Card>
-)}
 
-<FloatingChatButton/>
+        {/* Input fijo en la parte inferior SIN bordes */}
+        <div className={`fixed bottom-0 left-0 right-0 z-50 ${theme === "dark"
+          ? "bg-[#1b1b1d]"
+          : "bg-white"
+          }`}>
+          <div className="max-w-4xl mx-auto p-4">
+            <form onSubmit={handleUserInput} className="flex gap-2 items-center">
+              <Input
+                ref={inputRef}
+                type="text"
+                placeholder={
+                  canUserType
+                    ? "Escribe tu respuesta..."
+                    : "Espera a que el asistente termine..."
+                }
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                disabled={!canUserType}
+                className={`flex-1 h-12 ${theme === "dark"
+                  ? "bg-[#252527] text-white placeholder:text-gray-500 focus:ring-[#6841ea]"
+                  : "bg-gray-100 text-gray-900 placeholder:text-gray-500 focus:ring-[#6841ea]"
+                  } border-0 focus:ring-2`}
+              />
 
+              {/* Botón de micrófono */}
+              <Button
+                type="button"
+                onClick={startRecording}
+                disabled={!canUserType}
+                className={`h-12 w-14 p-0 rounded-lg ${isRecording
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-[#6841ea] hover:bg-[#5a36d4]"
+                  } ${isRecording ? "animate-pulse" : ""}`}
+              >
+                {isRecording ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <Mic className="w-5 h-5 text-white" />
+                )}
+              </Button>
+
+              {/* Botón de enviar */}
+              <Button
+                type="submit"
+                disabled={!canUserType || !userInput.trim()}
+                className="h-12 px-5 bg-[#6841ea] hover:bg-[#5a36d4] text-white rounded-lg disabled:opacity-50"
+              >
+                <Send className="w-5 h-5" />
+              </Button>
+            </form>
+          </div>
+        </div>
+
+        {/* Resumen de tareas */}
+        {taskReports.length > 0 && (
+          <div className={`mt-4 rounded-lg p-4 ${theme === "dark"
+            ? "bg-[#1b1b1d]"
+            : "bg-white"
+            }`}>
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-[#6841ea]" />
+              <h3 className="font-bold text-sm">Resumen del Reporte</h3>
+            </div>
+
+            <div className="space-y-2">
+              {taskReports.map((report, idx) => (
+                <div
+                  key={report.taskId}
+                  className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg ${theme === "dark"
+                    ? "bg-[#252527]"
+                    : "bg-gray-100"
+                    }`}
+                >
+                  <span className={`truncate flex-1 font-medium ${theme === "dark" ? "text-gray-300" : "text-gray-700"
+                    }`}>
+                    {idx + 1}. {report.titulo}
+                  </span>
+                  <Badge className="bg-[#6841ea] text-xs px-3 py-1">
+                    {report.tiempoTrabajado} min
+                  </Badge>
+                </div>
+              ))}
+
+              <div className={`flex items-center justify-between font-semibold pt-3 px-3 text-sm ${theme === "dark" ? "border-t border-[#252527]" : "border-t border-gray-200"
+                }`}>
+                <span className={`flex items-center gap-2 ${theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}>
+                  <Clock className="w-4 h-4 text-[#6841ea]" />
+                  Total:
+                </span>
+                <span className="text-[#6841ea]">
+                  {taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <FloatingChatButton />
       </div>
-      
 
       {/* Success Dialog */}
       <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-        <AlertDialogContent className="border-2 border-green-200 dark:border-green-800">
+        <AlertDialogContent className={`${theme === "dark"
+          ? "bg-[#1b1b1d] text-white"
+          : "bg-white text-gray-900"
+          }`}>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-green-600 dark:text-green-400 text-xl">
+            <AlertDialogTitle className="flex items-center gap-2 text-[#6841ea] text-xl">
               <PartyPopper className="w-6 h-6" />
               ¡Reporte enviado exitosamente!
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-base">
+            <AlertDialogDescription className={`${theme === "dark" ? "text-gray-300" : "text-gray-600"
+              }`}>
               Tu reporte ha sido enviado y registrado correctamente.
-              <div className="mt-4 p-4 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
-                <p className="font-semibold mb-2 text-green-900 dark:text-green-100">Resumen:</p>
-                <ul className="space-y-1 text-green-800 dark:text-green-200">
-                  <li className="flex items-center gap-2">
+              <div className={`mt-4 p-4 rounded-lg ${theme === "dark"
+                ? "bg-[#252527]"
+                : "bg-gray-100"
+                }`}>
+                <p className={`font-semibold mb-2 ${theme === "dark" ? "text-white" : "text-gray-900"
+                  }`}>Resumen:</p>
+                <ul className="space-y-2">
+                  <li className="flex items-center gap-2 text-[#6841ea]">
                     <CheckCircle2 className="w-4 h-4" />
                     {taskReports.length} tarea{taskReports.length !== 1 ? "s" : ""} registrada{taskReports.length !== 1 ? "s" : ""}
                   </li>
-                  <li className="flex items-center gap-2">
+                  <li className="flex items-center gap-2 text-[#6841ea]">
                     <Clock className="w-4 h-4" />
                     {taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos totales
                   </li>
@@ -824,9 +905,9 @@ const startRecording = async () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={onLogout}
-              className="bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700"
+              className="bg-[#6841ea] hover:bg-[#5a36d4] text-white"
             >
               Cerrar sesión
             </AlertDialogAction>
@@ -835,73 +916,65 @@ const startRecording = async () => {
       </AlertDialog>
 
       {/* Logout Confirm Dialog */}
-    <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
-  <AlertDialogContent className="border-0 shadow-2xl max-w-md overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl">
-    {/* Borde superior decorativo con tema violeta/azul */}
-    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-blue-500 to-violet-500 animate-gradient bg-[length:200%_auto]" />
-    
-    {/* Fondo decorativo */}
-    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-400/10 to-blue-400/10 dark:from-violet-600/5 dark:to-blue-600/5 rounded-full blur-3xl" />
-    <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-400/10 to-violet-400/10 dark:from-blue-600/5 dark:to-violet-600/5 rounded-full blur-3xl" />
-    
-    <AlertDialogHeader className="relative pt-6">
-      {/* Icono con efecto */}
-      <div className="mx-auto mb-4 relative group">
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-blue-500 rounded-full blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
-        <div className="relative w-16 h-16 bg-gradient-to-br from-violet-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-all duration-300">
-          <LogOut className="w-8 h-8 text-white" />
-        </div>
-      </div>
-      
-      <AlertDialogTitle className="text-center text-2xl font-bold bg-gradient-to-r from-violet-600 to-blue-600 dark:from-violet-400 dark:to-blue-400 bg-clip-text text-transparent">
-        ¿Cerrar sesión?
-      </AlertDialogTitle>
-      
-      <AlertDialogDescription className="text-center pt-4 pb-2">
-        {taskReports.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-base text-slate-700 dark:text-slate-300">
-              Tienes <strong className="text-violet-600 dark:text-violet-400">{taskReports.length}</strong> tarea{taskReports.length !== 1 ? "s" : ""} registrada{taskReports.length !== 1 ? "s" : ""}.
-            </p>
-            <div className="p-4 bg-gradient-to-r from-violet-50 to-blue-50 dark:from-violet-950/30 dark:to-blue-950/30 rounded-xl border-2 border-violet-200 dark:border-violet-800">
-              <p className="text-sm text-slate-800 dark:text-slate-200 flex items-center justify-center gap-2 font-medium">
-                <AlertCircle className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                ¿Estás seguro que deseas salir?
-              </p>
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent className={`${theme === "dark"
+          ? "bg-[#1b1b1d] text-white"
+          : "bg-white text-gray-900"
+          } max-w-md`}>
+          <AlertDialogHeader className="pt-6">
+            <div className="mx-auto mb-4">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${theme === "dark"
+                ? "bg-[#252527]"
+                : "bg-gray-100"
+                }`}>
+                <LogOut className="w-8 h-8 text-[#6841ea]" />
+              </div>
             </div>
-          </div>
-        ) : (
-          <p className="text-base text-slate-700 dark:text-slate-300">
-            ¿Estás seguro que deseas salir?
-          </p>
-        )}
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-    
-    <AlertDialogFooter className="flex-col sm:flex-row gap-3 pt-6">
-      <AlertDialogCancel className="w-full sm:w-auto border-2 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 rounded-xl h-11 font-medium hover:scale-105 active:scale-95">
-        Cancelar
-      </AlertDialogCancel>
-      <AlertDialogAction 
-        onClick={onLogout}
-        className="w-full sm:w-auto bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-violet-400/50 dark:hover:shadow-violet-900/50 transition-all duration-300 transform hover:scale-105 active:scale-95 rounded-xl h-11 font-semibold"
-      >
-        <LogOut className="w-4 h-4 mr-2" />
-        Confirmar salida
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
 
-      <style jsx>{`
-        @keyframes gradient {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-        }
-        .animate-gradient {
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
+            <AlertDialogTitle className="text-center text-xl font-bold">
+              ¿Cerrar sesión?
+            </AlertDialogTitle>
+
+            <AlertDialogDescription className={`text-center pt-4 pb-2 ${theme === "dark" ? "text-gray-300" : "text-gray-600"
+              }`}>
+              {taskReports.length > 0 ? (
+                <div className="space-y-3">
+                  <p>
+                    Tienes <strong className="text-[#6841ea]">{taskReports.length}</strong> tarea{taskReports.length !== 1 ? "s" : ""} registrada{taskReports.length !== 1 ? "s" : ""}.
+                  </p>
+                  <div className={`p-4 rounded-lg ${theme === "dark"
+                    ? "bg-[#252527]"
+                    : "bg-gray-100"
+                    }`}>
+                    <p className="text-sm flex items-center justify-center gap-2 font-medium">
+                      <AlertCircle className="w-4 h-4 text-[#6841ea]" />
+                      ¿Estás seguro que deseas salir?
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p>¿Estás seguro que deseas salir?</p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter className="flex-col sm:flex-row gap-3 pt-6">
+            <AlertDialogCancel className={`w-full sm:w-auto rounded-lg h-11 ${theme === "dark"
+              ? "bg-[#252527] hover:bg-[#303032] text-white"
+              : "bg-gray-100 hover:bg-gray-200 text-gray-900"
+              }`}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onLogout}
+              className="w-full sm:w-auto bg-[#6841ea] hover:bg-[#5a36d4] text-white rounded-lg h-11 font-semibold"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Confirmar salida
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

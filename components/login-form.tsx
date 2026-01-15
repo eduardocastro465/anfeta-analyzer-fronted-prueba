@@ -115,243 +115,184 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   const getDisplayName = (colaborador: Colaborador) => {
     if (colaborador.firstName || colaborador.lastName) {
-      return `${colaborador.firstName || ""} ${
-        colaborador.lastName || ""
-      }`.trim();
+      return `${colaborador.firstName || ""} ${colaborador.lastName || ""
+        }`.trim();
     }
     return colaborador.email.split("@")[0];
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* Fondo decorativo con gradientes */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 transition-colors duration-500">
-        {/* Elementos decorativos */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-violet-400/20 to-blue-400/20 dark:from-violet-600/10 dark:to-blue-600/10 rounded-full blur-3xl animate-pulse" />
-        <div
-          className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-blue-400/20 to-violet-400/20 dark:from-blue-600/10 dark:to-violet-600/10 rounded-full blur-3xl animate-pulse"
-          style={{ animationDelay: "1s" }}
-        />
-
-        {/* Patrón de puntos decorativos */}
-        <div
-          className="absolute inset-0 opacity-30 dark:opacity-10"
-          style={{
-            backgroundImage: `radial-gradient(circle, rgba(139, 92, 246, 0.15) 1px, transparent 1px)`,
-            backgroundSize: "32px 32px",
-          }}
-        />
-      </div>
-
-      {/* Botón de tema flotante */}
-      <div className="absolute top-6 right-6 z-50">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={toggleTheme}
-          className="rounded-full w-12 h-12 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-violet-200 dark:border-violet-800 hover:scale-110 transition-all duration-300 hover:shadow-xl hover:shadow-violet-300/50 dark:hover:shadow-violet-700/50"
-        >
-          {theme === "light" ? (
-            <Moon className="w-5 h-5 text-violet-700 dark:text-violet-300 transition-transform duration-300 rotate-0 hover:rotate-12" />
-          ) : (
-            <Sun className="w-5 h-5 text-amber-500 transition-transform duration-300 rotate-0 hover:rotate-180" />
-          )}
-        </Button>
-      </div>
+    <div className="min-h-screen bg-white dark:bg-neutral-900 font-['Arial']">
+      {/* Botón de tema minimalista */}
+      <button
+        onClick={toggleTheme}
+        className="fixed top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm flex items-center justify-center hover:bg-gray-100 dark:hover:bg-neutral-700 transition-colors shadow-sm"
+      >
+        {theme === "light" ? (
+          <Moon className="w-4 h-4 text-gray-700" />
+        ) : (
+          <Sun className="w-4 h-4 text-gray-300" />
+        )}
+      </button>
 
       {/* Contenido principal */}
-      <div className="relative flex items-center justify-center min-h-screen p-4">
-        <Card className="w-full max-w-md shadow-2xl border-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
-          {/* Borde superior decorativo */}
-          <div className="h-1.5 bg-gradient-to-r from-violet-500 via-blue-500 to-violet-500 animate-gradient bg-[length:200%_auto]" />
-
-          <CardHeader className="text-center space-y-4 pt-8 pb-6">
-            {/* Ícono principal con efecto */}
-            <div className="mx-auto relative group">
-              <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-blue-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity duration-300" />
-              <div className="relative w-20 h-20 bg-gradient-to-br from-violet-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                <User className="w-10 h-10 text-white drop-shadow-lg" />
+      <div className="flex items-center justify-center min-h-screen p-4">
+        <div className="w-full max-w-sm">
+          {/* Encabezado */}
+          <div className="text-center mb-8">
+            <div className="flex justify-center mb-5">
+              <div className="w-16 h-16 bg-[#6841ea]/10 dark:bg-[#6841ea]/20 rounded-full flex items-center justify-center">
+                <User className="w-7 h-7 text-[#6841ea] dark:text-[#9270ff]" />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-violet-600 to-blue-600 dark:from-violet-400 dark:to-blue-400 bg-clip-text text-transparent">
-                Registro de Actividades
-              </CardTitle>
-              <CardDescription className="text-base text-slate-600 dark:text-slate-300">
-                Selecciona tu usuario para comenzar a registrar tus tareas
-              </CardDescription>
-            </div>
-          </CardHeader>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              Registro de Actividades
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              Selecciona tu usuario para comenzar
+            </p>
+          </div>
 
-          <CardContent className="space-y-6 px-6 pb-8">
+          {/* Contenido sin apariencia de formulario */}
+          <div className="space-y-5">
+            {/* Mensaje de error sutil */}
             {error && (
-              <div className="relative p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl animate-in slide-in-from-top-2 duration-300">
-                <div className="flex items-start gap-3 text-red-700 dark:text-red-400">
-                  <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div className="p-3 bg-red-50/70 dark:bg-red-900/20 backdrop-blur-sm rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{error}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="mt-2 h-8 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30"
+                    <p className="text-red-700 dark:text-red-300 text-xs mb-1">{error}</p>
+                    <button
                       onClick={loadColaboradores}
+                      className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-xs font-medium flex items-center gap-1"
                     >
-                      <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                      <RefreshCw className="w-3 h-3" />
                       Reintentar
-                    </Button>
+                    </button>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                <User className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            {/* Selector */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 px-1">
                 Colaborador
               </label>
 
               {isLoadingColaboradores ? (
-                <div className="flex items-center justify-center p-6 border-2 border-dashed border-violet-200 dark:border-violet-800 rounded-xl bg-violet-50/50 dark:bg-violet-950/20">
-                  <Loader2 className="w-6 h-6 animate-spin text-violet-600 dark:text-violet-400" />
-                  <span className="ml-3 text-sm font-medium text-violet-700 dark:text-violet-300">
+                <div className="flex items-center justify-center p-4 bg-gray-50/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-lg">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#6841ea]" />
+                  <span className="ml-2 text-gray-600 dark:text-gray-400 text-sm">
                     Cargando colaboradores...
                   </span>
                 </div>
               ) : (
-                <Select value={selectedId} onValueChange={setSelectedId}>
-                  <SelectTrigger className="w-full h-12 border-2 border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-600 focus:border-violet-500 dark:focus:border-violet-500 transition-colors rounded-xl bg-white dark:bg-slate-800">
-                    <SelectValue placeholder="Selecciona tu usuario..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-2">
+                <div className="relative">
+                  <select
+                    value={selectedId}
+                    onChange={(e) => setSelectedId(e.target.value)}
+                    className="w-full h-12 px-3 bg-white/70 dark:bg-neutral-800/70 backdrop-blur-sm border-0 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#6841ea] shadow-sm appearance-none text-sm"
+                  >
+                    <option value="" className="text-gray-400">Selecciona tu usuario...</option>
                     {colaboradores.map((colaborador) => (
-                      <SelectItem
-                        key={colaborador._id}
-                        value={colaborador._id}
-                        className="rounded-lg my-1"
-                      >
-                        <div className="flex items-center gap-3 py-1">
-                          {colaborador.avatar ? (
-                            <img
-                              src={colaborador.avatar || "/placeholder.svg"}
-                              alt=""
-                              className="w-7 h-7 rounded-full object-cover ring-2 ring-violet-200 dark:ring-violet-800"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-blue-500 flex items-center justify-center">
-                              <User className="w-4 h-4 text-white" />
-                            </div>
-                          )}
-                          <span className="font-medium">
-                            {getDisplayName(colaborador)}
-                          </span>
-                        </div>
-                      </SelectItem>
+                      <option key={colaborador._id} value={colaborador._id} className="bg-white dark:bg-neutral-800">
+                        {getDisplayName(colaborador)}
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
               )}
             </div>
 
+            {/* Información del colaborador */}
             {colaboradorInfo && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-top-3 duration-500">
-                {/* Tarjeta de información del colaborador */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-50 to-blue-50 dark:from-slate-800 dark:to-slate-800/50 border-2 border-violet-100 dark:border-violet-900/50 p-5 shadow-lg">
-                  {/* Patrón de fondo */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-400/10 to-blue-400/10 dark:from-violet-600/5 dark:to-blue-600/5 rounded-full blur-2xl" />
-
-                  <div className="relative space-y-4">
-                    <div className="flex items-center gap-4">
+              <div className="space-y-5 animate-in fade-in">
+                {/* Tarjeta de perfil */}
+                <div className="p-4 bg-gray-50/50 dark:bg-neutral-800/50 backdrop-blur-sm rounded-lg">
+                  <div className="space-y-4">
+                    {/* Perfil */}
+                    <div className="flex items-center gap-3">
                       {colaboradorInfo.avatar ? (
                         <img
-                          src={colaboradorInfo.avatar || "/placeholder.svg"}
-                          alt=""
-                          className="w-14 h-14 rounded-full object-cover ring-4 ring-white dark:ring-slate-700 shadow-lg"
+                          src={colaboradorInfo.avatar}
+                          alt={getDisplayName(colaboradorInfo)}
+                          className="w-10 h-10 rounded-full object-cover ring-1 ring-white/50 dark:ring-neutral-700/50"
                         />
                       ) : (
-                        <div className="w-14 h-14 bg-gradient-to-br from-violet-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-lg ring-4 ring-white dark:ring-slate-700">
-                          {getDisplayName(colaboradorInfo)
-                            .charAt(0)
-                            .toUpperCase()}
+                        <div className="w-10 h-10 bg-[#6841ea]/10 dark:bg-[#6841ea]/20 rounded-full flex items-center justify-center">
+                          <span className="text-[#6841ea] dark:text-[#9270ff] font-bold text-sm">
+                            {getDisplayName(colaboradorInfo).charAt(0).toUpperCase()}
+                          </span>
                         </div>
                       )}
-                      <div className="flex-1">
-                        <p className="font-bold text-lg text-slate-900 dark:text-white">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">
                           {getDisplayName(colaboradorInfo)}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-1.5 mt-1">
-                          <Mail className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400 text-xs truncate">
                           {colaboradorInfo.email}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-3 border-t-2 border-violet-200/50 dark:border-violet-800/50">
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                        <ListTodo className="w-4 h-4 text-violet-600 dark:text-violet-400" />
-                        Tareas asignadas
-                      </span>
-                      {isLoadingActividades ? (
-                        <Loader2 className="w-5 h-5 animate-spin text-violet-600 dark:text-violet-400" />
-                      ) : (
-                        <Badge
-                          variant={
-                            actividadesCount > 0 ? "default" : "secondary"
-                          }
-                          className={`px-3 py-1 text-sm font-bold ${
-                            actividadesCount > 0
-                              ? "bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 shadow-md"
-                              : ""
-                          }`}
-                        >
-                          {actividadesCount}{" "}
-                          {actividadesCount === 1 ? "tarea" : "tareas"}
-                        </Badge>
-                      )}
+                    {/* Estado de tareas */}
+                    <div className="pt-3 border-t border-gray-100/50 dark:border-neutral-700/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-700 dark:text-gray-300 text-sm">
+                          Tareas asignadas
+                        </span>
+                        <div className="flex items-center">
+                          {isLoadingActividades ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#6841ea]" />
+                          ) : (
+                            <div className={`px-2.5 py-1 rounded text-xs font-medium ${actividadesCount > 0
+                                ? 'bg-[#6841ea]/10 dark:bg-[#6841ea]/20 text-[#6841ea] dark:text-[#9270ff]'
+                                : 'bg-gray-100/70 dark:bg-neutral-800/50 text-gray-600 dark:text-gray-400'
+                              }`}>
+                              {actividadesCount} {actividadesCount === 1 ? 'tarea' : 'tareas'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Botón de acceso */}
-                <Button
+                {/* Botón de acción */}
+                <button
                   onClick={handleAcceder}
-                  className="w-full h-12 text-base font-semibold rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 text-white shadow-lg hover:shadow-xl hover:shadow-violet-300/50 dark:hover:shadow-violet-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
                   disabled={actividadesCount === 0 || isLoadingActividades}
+                  className={`w-full h-11 rounded-lg font-medium transition-all text-sm ${actividadesCount > 0 && !isLoadingActividades
+                      ? 'bg-[#6841ea] hover:bg-[#5a36d4] text-white shadow hover:shadow-md'
+                      : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    }`}
                 >
                   {isLoadingActividades ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Cargando tareas...
-                    </>
+                    <span className="flex items-center justify-center">
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Cargando...
+                    </span>
                   ) : actividadesCount > 0 ? (
-                    <>
-                      Acceder al ChatBot
-                      <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </>
+                    <span className="flex items-center justify-center">
+                      Iniciar Sesión
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </span>
                   ) : (
                     "No hay tareas asignadas"
                   )}
-                </Button>
+                </button>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
-
-      <style jsx>{`
-        @keyframes gradient {
-          0%,
-          100% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-        }
-        .animate-gradient {
-          animation: gradient 3s ease infinite;
-        }
-      `}</style>
     </div>
   );
 }
