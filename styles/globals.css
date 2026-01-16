@@ -123,3 +123,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Para ocultar elementos del navegador en modo PiP */
+.pip-mode {
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ocultar barras de desplazamiento en PiP */
+.pip-mode ::-webkit-scrollbar {
+  display: none;
+}
+
+.pip-mode {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

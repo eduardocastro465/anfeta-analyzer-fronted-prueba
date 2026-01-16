@@ -30,6 +30,7 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
+import Image from "next/image"
 
 interface LoginFormProps {
   onLogin: (colaborador: Colaborador, actividades: Actividad[]) => void;
@@ -141,13 +142,23 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           {/* Encabezado */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-5">
-              <div className="w-16 h-16 bg-[#6841ea]/10 dark:bg-[#6841ea]/20 rounded-full flex items-center justify-center">
-                <User className="w-7 h-7 text-[#6841ea] dark:text-[#9270ff]" />
-              </div>
+              <div className="bg-transparent rounded-full flex items-center justify-center">
+                <Image
+                                   src="/icono.webp"
+                                   alt="Chat"
+                                   width={100}
+                                   height={100}
+                                   className="
+                               object-contain
+                               rounded-full
+                               drop-shadow-[0_0_6px_rgba(104,65,234,0.8)]
+                               drop-shadow-[0_0_16px_rgba(168,139,255,0.9)]
+                             "
+                                 />  </div>
             </div>
 
             <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              Registro de Actividades
+              Asistente de Tareas
             </h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
               Selecciona tu usuario para comenzar
