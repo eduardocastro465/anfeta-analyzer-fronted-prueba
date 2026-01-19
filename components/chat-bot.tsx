@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,8 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import type { Actividad, Colaborador, TaskReport, ReporteCompleto } from "@/lib/types"
-import { sendReporte } from "@/lib/api"
+import type { Colaborador } from "@/lib/types"
 import {
   Bot,
   FileText,
@@ -31,50 +29,80 @@ import {
   Sparkles,
   Moon,
   Sun,
-  Maximize2,
-  MessageSquare,
   Minimize2,
   PictureInPicture,
   Mic,
   MicOff,
   Volume2,
+  Brain,
+  Calendar,
+  Target,
+  Zap,
+  BarChart3,
+  User,
+  Mail,
+  CalendarDays,
 } from "lucide-react"
 import Image from "next/image"
 
 interface ChatBotProps {
   colaborador: Colaborador
-  actividades: Actividad[]
+  actividades: any[]
   onLogout: () => void
 }
 
 type ChatStep =
   | "welcome"
-  | "show-tasks"
-  | "ask-task-selection"
-  | "loading-pendientes"
-  | "show-pendientes"
-  | "ask-pendiente-selection"
-  | "ask-time"
-  | "ask-description"
-  | "confirm-next"
+  | "loading-analysis"
+  | "show-analysis"
   | "finished"
-  | "sending"
 
 interface Message {
   id: string
-  type: "bot" | "user" | "system" | "voice"
+  type: "bot" | "user" | "system" | "voice" | "analysis"
   content: string | React.ReactNode
   timestamp: Date
   voiceText?: string
 }
 
-export interface Pendiente {
-  id: string
-  text: string
-  checked: boolean
-  updatedAt: string
-  images: string[]
-  bloque: number
+interface AssistantAnalysis {
+  success: boolean
+  answer: string
+  provider: string
+  metrics: {
+    totalActividades: number
+    totalPendientes: number
+    pendientesAltaPrioridad: number
+    tiempoEstimadoTotal: string
+    actividadesConPendientes: number
+  }
+  data: {
+    actividades: Array<{
+      id: string
+      titulo: string
+      horario: string
+      status: string
+      proyecto: string
+      tieneRevisiones: boolean
+    }>
+    revisionesPorActividad: Array<{
+      actividadId: string
+      actividadTitulo: string
+      totalPendientes: number
+      pendientesAlta: number
+      tiempoTotal: number
+      pendientes: Array<{
+        id: string
+        nombre: string
+        terminada: boolean
+        confirmada: boolean
+        duracionMin: number
+        fechaCreacion: string
+        fechaFinTerminada: string | null
+        prioridad: string
+      }>
+    }>
+  }
 }
 
 const getDisplayName = (colaborador: Colaborador) => {
@@ -84,16 +112,13 @@ const getDisplayName = (colaborador: Colaborador) => {
   return colaborador.email.split("@")[0]
 }
 
-export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
+export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
   const [step, setStep] = useState<ChatStep>("welcome")
-  const [currentTaskIndex, setCurrentTaskIndex] = useState<number>(0)
-  const [taskReports, setTaskReports] = useState<TaskReport[]>([])
   const [userInput, setUserInput] = useState<string>("")
   const [messages, setMessages] = useState<Message[]>([])
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [theme, setTheme] = useState<"light" | "dark">("dark")
   const [isTyping, setIsTyping] = useState(false)
   const [isPiPMode, setIsPiPMode] = useState(false)
@@ -102,37 +127,25 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
   const [isListening, setIsListening] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState("")
   const [showVoiceOverlay, setShowVoiceOverlay] = useState(false)
-  const [voiceMessages, setVoiceMessages] = useState<Message[]>([])
+  const [assistantAnalysis, setAssistantAnalysis] = useState<AssistantAnalysis | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const welcomeSentRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const pipWindowRef = useRef<Window | null>(null)
   const recognitionRef = useRef<any>(null)
 
-  const [selectedTasks, setSelectedTasks] = useState<Actividad[]>([])
-  const [currentTaskPendientes, setCurrentTaskPendientes] = useState<Pendiente[]>([])
-  const [selectedPendienteIds, setSelectedPendienteIds] = useState<string[]>([])
-  const [currentTime, setCurrentTime] = useState<string>("")
-  const [currentDescription, setCurrentDescription] = useState<string>("")
-
-  const HORA_INICIO = 9
-  const HORA_FIN = 24
+  const displayName = getDisplayName(colaborador)
 
   useEffect(() => {
-    // Configurar tema oscuro por defecto
     document.documentElement.classList.add("dark")
 
-    // Detectar si estamos en una ventana PiP
     const checkIfPiPWindow = () => {
       const urlParams = new URLSearchParams(window.location.search)
       const isPiPWindow = urlParams.get("pip") === "true"
       setIsInPiPWindow(isPiPWindow)
 
-      // Si estamos en ventana PiP, configurarla apropiadamente
       if (isPiPWindow) {
         document.title = "Asistente Anfeta"
-        
-        // Ocultar elementos del navegador y aplicar estilos minimalistas
         document.documentElement.style.overflow = "hidden"
         document.body.style.margin = "0"
         document.body.style.padding = "0"
@@ -140,35 +153,26 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
         document.body.style.height = "100vh"
         document.body.style.width = "100vw"
 
-        // Configurar para manejo de ventana PiP
         if (window.opener) {
           setIsPiPMode(true)
-          
-          // Intentar hacer la ventana más minimalista
           try {
-            // Solo intentar mover/redimensionar si es una ventana popup
-            if (window.opener) {
-              window.moveTo(window.screenX, window.screenY)
-              window.resizeTo(400, 600)
-            }
+            window.moveTo(window.screenX, window.screenY)
+            window.resizeTo(400, 600)
           } catch (e) {
             console.log("No se pueden aplicar ciertas restricciones de ventana")
           }
         }
 
-        // Configurar listener para mensajes de la ventana principal
         window.addEventListener("message", handleParentMessage)
       }
     }
 
     checkIfPiPWindow()
 
-    // Configurar listener para mensajes si no estamos en PiP (ventana principal)
     if (!isInPiPWindow) {
       window.addEventListener("message", handleChildMessage)
     }
 
-    // Configurar interval para verificar estado de ventana PiP
     const checkPiPWindowInterval = setInterval(() => {
       if (pipWindowRef.current && pipWindowRef.current.closed) {
         console.log("Ventana PiP cerrada detectada")
@@ -177,10 +181,8 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
       }
     }, 1000)
 
-    // Manejar cierre de ventana PiP desde ventana principal
     const handleBeforeUnload = () => {
       if (pipWindowRef.current && !pipWindowRef.current.closed) {
-        // Notificar a la ventana PiP que se va a cerrar
         try {
           pipWindowRef.current.postMessage({ type: "PARENT_CLOSING" }, "*")
         } catch (e) {
@@ -192,13 +194,12 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
 
     window.addEventListener("beforeunload", handleBeforeUnload)
 
-    // Limpiar al desmontar
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload)
       window.removeEventListener("message", handleParentMessage)
       window.removeEventListener("message", handleChildMessage)
       clearInterval(checkPiPWindowInterval)
-      
+
       if (pipWindowRef.current && !pipWindowRef.current.closed) {
         pipWindowRef.current.close()
       }
@@ -208,25 +209,416 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
     }
   }, [isInPiPWindow])
 
-  // Manejar mensajes de la ventana principal (cuando estamos en PiP)
   const handleParentMessage = (event: MessageEvent) => {
-    // Verificar origen para seguridad
     if (event.origin !== window.location.origin) return
-    
+
     if (event.data.type === "PARENT_CLOSING") {
       window.close()
     }
   }
 
-  // Manejar mensajes de la ventana hija (cuando somos la ventana principal)
   const handleChildMessage = (event: MessageEvent) => {
     if (event.origin !== window.location.origin) return
-    
+
     if (event.data.type === "CHILD_CLOSED") {
       console.log("Ventana PiP notificó su cierre")
       setIsPiPMode(false)
       pipWindowRef.current = null
     }
+  }
+
+  const fetchAssistantAnalysis = async (showAll = false) => {
+    try {
+      setIsTyping(true);
+      setStep("loading-analysis");
+
+      addMessage("system", (
+        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+          <Brain className="w-4 h-4 text-[#6841ea]" />
+          {showAll ? "Obteniendo todas tus actividades..." : "Obteniendo analisis de tus actividades..."}
+        </div>
+      ));
+
+      const requestBody = {
+        email: colaborador.email,
+        showAll: showAll
+      };
+
+      console.log("Enviando peticion a asistente:", requestBody);
+
+      const response = await fetch("http://localhost:4000/api/v1/assistant/actividades-con-revisiones", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error en la solicitud: ${response.status}`);
+      }
+
+      const data: AssistantAnalysis = await response.json();
+
+      console.log("Analisis recibido:", data);
+
+      // VERIFICACION: Hay actividades?
+      if (!data.success || !data.data || data.data.actividades.length === 0) {
+        console.log("No hay actividades");
+
+        setIsTyping(false);
+
+        // Mostrar mensaje sin actividades
+        addMessage("bot", (
+          <div className={`p-4 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+            <div className="text-center py-4">
+              <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+              <h4 className="font-semibold mb-1">Sin actividades</h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                {showAll
+                  ? "No tienes actividades registradas para hoy."
+                  : "No tienes actividades registradas en el horario de 09:30 a 16:30."
+                }
+              </p>
+              {!showAll && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fetchAssistantAnalysis(true)}
+                  className="mt-2"
+                >
+                  Ver todas las actividades del dia
+                </Button>
+              )}
+            </div>
+          </div>
+        ));
+
+        setStep("finished");
+        return;
+      }
+
+      // Si hay actividades, continuar con el analisis normal
+      setAssistantAnalysis(data);
+      showAssistantAnalysis(data);
+
+    } catch (error) {
+      console.error("Error al obtener analisis del asistente:", error);
+
+      setIsTyping(false);
+
+      addMessage("system", (
+        <div className="flex items-center gap-2 text-red-500">
+          <AlertCircle className="w-4 h-4" />
+          Error al obtener el analisis
+        </div>
+      ));
+
+      addMessage("bot", (
+        <div className={`p-4 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+          <div className="text-center py-3">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <h4 className="font-semibold mb-1">Error de conexion</h4>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+              No se pudo obtener el analisis en este momento. Puedes intentar nuevamente.
+            </p>
+            <div className="flex justify-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => fetchAssistantAnalysis(showAll)}
+              >
+                Reintentar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-[#6841ea] hover:bg-[#5a36d4]"
+                onClick={onLogout}
+              >
+                Cerrar sesion
+              </Button>
+            </div>
+          </div>
+        </div>
+      ));
+
+      setStep("finished");
+    } finally {
+      setIsTyping(false);
+    }
+  };
+  const showAssistantAnalysis = async (analysis: AssistantAnalysis) => {
+    // Obtener las tareas planificadas
+    const tareas = analysis.data.revisionesPorActividad[0]?.pendientes || [];
+    const hayTareas = tareas.length > 0;
+
+    // Mostrar información del usuario (más corta)
+    addMessageWithTyping("bot", (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#6841ea]/5 border border-[#6841ea]/10">
+          <div className="p-2 rounded-full bg-[#6841ea]/10">
+            <User className="w-5 h-5 text-[#6841ea]" />
+          </div>
+          <div>
+            <p className="font-medium text-sm">Hola, {displayName}!</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+              <Mail className="w-3 h-3" />
+              {colaborador.email}
+            </p>
+          </div>
+        </div>
+
+        {/* Encabezado del análisis - Más corto */}
+        <div className="flex items-center gap-3 mt-3">
+          <div className="p-2 rounded-full bg-[#6841ea]/10">
+            <Brain className="w-5 h-5 text-[#6841ea]" />
+          </div>
+          <div>
+            <h3 className="font-bold text-md">📋 Resumen de tu día</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date().toLocaleDateString('es-MX', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </p>
+          </div>
+        </div>
+      </div>
+    ), 400)
+
+    // Mostrar métricas principales (simplificadas)
+    setTimeout(async () => {
+      addMessageWithTyping("bot", (
+        <div className="space-y-4">
+          {/* Métricas principales - Solo las importantes */}
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <div className={`p-3 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="w-3 h-3 text-red-500" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Alta</span>
+              </div>
+              <div className="text-xl font-bold text-red-500">{analysis.metrics.pendientesAltaPrioridad || 0}</div>
+            </div>
+
+            <div className={`p-3 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <FileText className="w-3 h-3 text-green-500" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</span>
+              </div>
+              <div className="text-xl font-bold">{analysis.metrics.totalPendientes || 0}</div>
+            </div>
+
+            <div className={`p-3 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className="w-3 h-3 text-yellow-500" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tiempo</span>
+              </div>
+              <div className="text-xl font-bold text-yellow-500">{analysis.metrics.tiempoEstimadoTotal || "0h 0m"}</div>
+            </div>
+          </div>
+
+          {/* Respuesta CORTA del asistente */}
+          {analysis.answer && (
+            <div className={`p-3 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+              <div className="flex items-start gap-2">
+                <Bot className="w-4 h-4 text-[#6841ea] mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                    {analysis.answer.split('\n\n')[0]} {/* Solo primera parte */}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ), 600)
+
+      // Mostrar las tareas según cantidad
+      setTimeout(async () => {
+        if (!hayTareas) {
+          addMessageWithTyping("bot", (
+            <div className={`p-4 rounded-lg border ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-gray-50 border-gray-200"}`}>
+              <div className="text-center py-4">
+                <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                <h4 className="font-semibold mb-1">Sin tareas planificadas</h4>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No hay tareas con tiempo estimado para hoy.
+                </p>
+              </div>
+            </div>
+          ), 800)
+        } else if (tareas.length <= 3) {
+          // Mostrar como LISTA SIMPLE (1-3 tareas)
+          addMessageWithTyping("bot", (
+            <div className={`rounded-lg border overflow-hidden ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-200"}`}>
+              <div className="p-3 border-b border-[#2a2a2a] bg-[#6841ea]/10">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  Tareas para Hoy ({tareas.length})
+                </h4>
+              </div>
+
+              <div className="p-3 space-y-2">
+                {tareas.map((tarea, idx) => {
+                  const diasPendiente = Math.floor((new Date() - new Date(tarea.fechaCreacion)) / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div key={tarea.id} className={`p-3 rounded-lg ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"} flex items-center justify-between`}>
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                        ${tarea.prioridad === "ALTA" ? "bg-red-500/20 text-red-500" :
+                            tarea.prioridad === "MEDIA" ? "bg-yellow-500/20 text-yellow-500" :
+                              "bg-green-500/20 text-green-500"}`}>
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{tarea.nombre}</p>
+                          <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {tarea.duracionMin} min
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {diasPendiente}d
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <Badge
+                        variant={tarea.prioridad === "ALTA" ? "destructive" : "secondary"}
+                        className="text-xs"
+                      >
+                        {tarea.prioridad}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Resumen abajo */}
+              <div className={`p-3 border-t ${theme === "dark" ? "border-[#2a2a2a] bg-[#252527]" : "border-gray-200 bg-gray-50"}`}>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Total tiempo:</span>
+                  <span className="font-bold">{analysis.metrics.tiempoEstimadoTotal}</span>
+                </div>
+              </div>
+            </div>
+          ), 800)
+        } else {
+          // Mostrar como TABLA (más de 3 tareas)
+          addMessageWithTyping("bot", (
+            <div className={`rounded-lg border overflow-hidden ${theme === "dark" ? "bg-[#1a1a1a] border-[#2a2a2a]" : "bg-white border-gray-200"}`}>
+              <div className="p-3 border-b border-[#2a2a2a] bg-[#6841ea]/10">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    Tareas Planificadas ({tareas.length})
+                  </h4>
+                  <Badge variant="outline" className="text-xs">
+                    {analysis.metrics.tiempoEstimadoTotal}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto max-h-[300px]">
+                <table className="w-full text-xs">
+                  <thead className={`sticky top-0 ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+                    <tr>
+                      <th className="p-2 text-left font-medium">#</th>
+                      <th className="p-2 text-left font-medium">Tarea</th>
+                      <th className="p-2 text-left font-medium">Tiempo</th>
+                      <th className="p-2 text-left font-medium">Prioridad</th>
+                      <th className="p-2 text-left font-medium">Días</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tareas.map((tarea, idx) => {
+                      const diasPendiente = Math.floor((new Date() - new Date(tarea.fechaCreacion)) / (1000 * 60 * 60 * 24));
+
+                      return (
+                        <tr
+                          key={tarea.id}
+                          className={`border-t ${theme === "dark" ? "border-[#2a2a2a] hover:bg-[#252527]" : "border-gray-200 hover:bg-gray-50"}`}
+                        >
+                          <td className="p-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium
+                            ${tarea.prioridad === "ALTA" ? "bg-red-500/10 text-red-500" :
+                                tarea.prioridad === "MEDIA" ? "bg-yellow-500/10 text-yellow-500" :
+                                  "bg-green-500/10 text-green-500"}`}>
+                              {idx + 1}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <div className="max-w-[180px]">
+                              <p className="font-medium truncate">{tarea.nombre}</p>
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {tarea.duracionMin}min
+                            </Badge>
+                          </td>
+                          <td className="p-2">
+                            <Badge
+                              className={`text-xs ${tarea.prioridad === "ALTA" ? "bg-red-500 hover:bg-red-600" :
+                                tarea.prioridad === "MEDIA" ? "bg-yellow-500 hover:bg-yellow-600" :
+                                  "bg-green-500 hover:bg-green-600"
+                                } text-white`}
+                            >
+                              {tarea.prioridad}
+                            </Badge>
+                          </td>
+                          <td className="p-2">
+                            <div className={`px-2 py-1 rounded text-xs ${diasPendiente > 3 ? "bg-red-500/10 text-red-500" : "bg-gray-500/10 text-gray-500"}`}>
+                              {diasPendiente}d
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Resumen final */}
+              <div className={`p-3 border-t ${theme === "dark" ? "border-[#2a2a2a] bg-[#252527]" : "border-gray-200 bg-gray-50"}`}>
+                <div className="flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Target className="w-3 h-3 text-red-500" />
+                      <span>Alta: {analysis.metrics.pendientesAltaPrioridad}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <FileText className="w-3 h-3 text-green-500" />
+                      <span>Total: {tareas.length}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 font-bold">
+                    <Clock className="w-3 h-3 text-yellow-500" />
+                    <span>{analysis.metrics.tiempoEstimadoTotal}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ), 800)
+        }
+
+        // Finalizar con mensaje corto
+        setTimeout(async () => {
+          await addMessageWithTyping("bot", (
+            <div className={`p-3 rounded-lg ${theme === "dark" ? "bg-[#1a1a1a] border border-[#2a2a2a]" : "bg-gray-50 border border-gray-200"}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {hayTareas
+                    ? "¿En cuál tarea te gustaría enfocarte primero?"
+                    : "¿Necesitas ayuda para planificar nuevas tareas?"
+                  }
+                </span>
+              </div>
+            </div>
+          ), 600)
+          setStep("finished")
+        }, 1000)
+      }, 800)
+    }, 800)
   }
 
   const startRecording = () => {
@@ -302,7 +694,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
               </div>
               <div className="flex-1">
                 <div className="text-xs text-gray-500 mb-1">Voz reconocida</div>
-                <div className="text-sm">{voiceTranscript}</div>
+                {/* <div className="text-sm">{voiceTranscript}</div> */}
               </div>
             </div>
           ),
@@ -311,7 +703,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
         }
 
         setMessages(prev => [...prev, voiceMessage])
-        setUserInput(voiceTranscript)
+        // setUserInput(voiceTranscript)
       }
 
       setShowVoiceOverlay(false)
@@ -330,25 +722,22 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
   }
 
   const openPiPWindow = () => {
-    // Cerrar ventana PiP existente si hay una
     if (pipWindowRef.current && !pipWindowRef.current.closed) {
       pipWindowRef.current.close()
       pipWindowRef.current = null
     }
 
-    // Crear ventana PiP con características minimalistas
     const width = 400
     const height = 600
     const left = window.screenLeft + window.outerWidth - width
     const top = window.screenTop
 
-    // Características optimizadas para ventana flotante minimalista
     const features = [
       `width=${width}`,
       `height=${height}`,
       `left=${left}`,
       `top=${top}`,
-      "popup=yes", // Marcar como popup para mejor soporte
+      "popup=yes",
       "menubar=no",
       "toolbar=no",
       "location=no",
@@ -356,24 +745,20 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
       "resizable=yes",
       "scrollbars=no",
       "titlebar=no",
-      "chrome=no", // Intentar ocultar elementos del navegador
-      "dialog=yes", // Estilo de diálogo
+      "chrome=no",
+      "dialog=yes",
       "modal=no",
-      "alwaysRaised=yes", // Mantener siempre al frente
+      "alwaysRaised=yes",
       "z-lock=yes"
     ].join(",")
 
-    // Abrir ventana PiP con parámetro de identificación
     const pipUrl = `${window.location.origin}${window.location.pathname}?pip=true&timestamp=${Date.now()}`
     pipWindowRef.current = window.open(pipUrl, "anfeta_pip", features)
 
     if (pipWindowRef.current) {
-      // Notificar a la ventana principal que se abrió PiP
       setIsPiPMode(true)
 
-      // Configurar listener para cuando la ventana se cierre
       pipWindowRef.current.addEventListener("beforeunload", () => {
-        // Notificar a la ventana principal que nos cerramos
         try {
           window.opener?.postMessage({ type: "CHILD_CLOSED" }, "*")
         } catch (e) {
@@ -381,7 +766,6 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
         }
       })
 
-      // Intentar enfocar la ventana
       setTimeout(() => {
         if (pipWindowRef.current && !pipWindowRef.current.closed) {
           try {
@@ -392,7 +776,6 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
         }
       }, 100)
 
-      // Configurar interval para verificar si la ventana sigue abierta
       const checkWindowClosed = setInterval(() => {
         if (pipWindowRef.current?.closed) {
           clearInterval(checkWindowClosed)
@@ -413,35 +796,6 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
     }
     setIsPiPMode(false)
   }
-
-  const actividadesEnHorario = actividades.filter((actividad) => {
-    if (!actividad || !actividad.id || !actividad.titulo || actividad.titulo.trim() === "") {
-      return false
-    }
-    if (!actividad.dueStart && !actividad.dueEnd) return false
-
-    try {
-      const startDate = new Date(actividad.dueStart || actividad.dueEnd)
-      const endDate = new Date(actividad.dueEnd || actividad.dueStart)
-
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-
-      const startHour = startDate.getHours()
-      const endHour = endDate.getHours()
-
-      const isDuranteHorario =
-        (startHour >= HORA_INICIO && startHour < HORA_FIN) ||
-        (endHour > HORA_INICIO && endHour <= HORA_FIN) ||
-        (startHour < HORA_INICIO && endHour > HORA_FIN)
-
-      return isDuranteHorario
-    } catch (error) {
-      return false
-    }
-  }).filter(Boolean)
-
-  const currentTask = selectedTasks[currentTaskIndex]
-  const displayName = getDisplayName(colaborador)
 
   const addMessage = (type: Message["type"], content: string | React.ReactNode, voiceText?: string) => {
     const newMessage: Message = {
@@ -468,372 +822,32 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
   }, [messages, isTyping])
 
   useEffect(() => {
-    if (inputRef.current && step !== "loading-pendientes" && step !== "sending") {
+    if (inputRef.current && step !== "loading-analysis") {
       inputRef.current.focus()
     }
   }, [step])
 
   useEffect(() => {
     if (!welcomeSentRef.current) {
-      welcomeSentRef.current = true
+      welcomeSentRef.current = true;
 
       setTimeout(() => {
-        addMessageWithTyping("bot", `¡Hola ${displayName}! 👋 Soy tu asistente para registro de actividades.`, 500)
+        addMessageWithTyping("bot", `¡Hola ${displayName}! 👋 Soy tu asistente.`, 500)
+
         setTimeout(() => {
-          showTaskList()
-        }, 1500)
-      }, 500)
-    }
-  }, [])
-
-  const showTaskList = async () => {
-    const taskList = (
-      <div className="space-y-3 mt-3">
-        {actividadesEnHorario.map((task, idx) => (
-          <div key={task.id} className="group p-4 rounded-xl transition-all duration-300 border 
-            bg-gray-50 hover:bg-gray-100 border-gray-200
-            dark:bg-[#1a1a1a] dark:hover:bg-[#252525] dark:border-[#2a2a2a]">
-            <div className="flex items-start gap-3">
-              <Badge className="shrink-0 bg-[#6841ea] text-white">
-                {idx + 1}
-              </Badge>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm mb-2 text-gray-900 dark:text-white">
-                  {task.titulo}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs 
-                    bg-gray-200 text-gray-700
-                    dark:bg-[#2a2a2a] dark:text-gray-300">
-                    {task.status || "Sin estado"}
-                  </Badge>
-                  {task.prioridad && task.prioridad !== "Sin prioridad" && (
-                    <Badge className="text-xs bg-[#6841ea] text-white">
-                      {task.prioridad}
-                    </Badge>
-                  )}
-                </div>
-              </div>
+          addMessage("system", (
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <Mail className="w-4 h-4 text-[#6841ea]" />
+              Buscando tus actividades para el día de hoy...
             </div>
-          </div>
-        ))}
-      </div>
-    )
-
-    await addMessageWithTyping("bot", (
-      <div>
-        <p className="mb-3 flex items-center gap-2 text-gray-700 dark:text-gray-300">
-          Tienes <strong>{actividadesEnHorario.length}</strong> tarea{actividadesEnHorario.length !== 1 ? "s" : ""} para hoy (9:00 AM - 12:00 AM):
-        </p>
-        {taskList}
-      </div>
-    ))
-
-    setTimeout(async () => {
-      await addMessageWithTyping("bot", "Escribe los números de las tareas que trabajarás hoy, separados por comas. Ejemplo: 1, 2, 3")
-      setStep("ask-task-selection")
-    }, 1000)
-  }
-
-  const handleTaskSelection = (input: string) => {
-    const numbers = input
-      .split(",")
-      .map(n => parseInt(n.trim()))
-      .filter(n => !isNaN(n) && n > 0 && n <= actividadesEnHorario.length)
-
-    if (numbers.length === 0) {
-      addMessage("bot", "No reconocí números válidos. Por favor, intenta nuevamente.")
-      return
+          ));
+          // Llamada inicial sin showAll (solo 09:30-16:30)
+          fetchAssistantAnalysis(false);
+        }, 1500);
+      }, 500);
     }
+  }, []);
 
-    const selected = numbers.map(n => actividadesEnHorario[n - 1])
-
-    addMessage("user", input)
-    addMessage("system", (
-      <div className="flex items-center gap-2 text-[#6841ea]">
-        <CheckCircle2 className="w-4 h-4" />
-        Seleccionadas: {selected.map(t => t.titulo).join(", ")}
-      </div>
-    ))
-
-    setSelectedTasks(selected)
-    setCurrentTaskIndex(0)
-
-    setTimeout(() => {
-      startTaskWorkflow(selected, 0)
-    }, 500)
-  }
-
-  const startTaskWorkflow = async (
-    tasks = selectedTasks,
-    index = currentTaskIndex
-  ) => {
-    const task = tasks[index]
-
-    if (!task) {
-      console.error("No hay tarea seleccionada")
-      addMessage("bot", "Hubo un problema al cargar la tarea.")
-      return
-    }
-
-    await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-        <Sparkles className="w-4 h-4 text-[#6841ea]" />
-        Perfecto! Trabajaremos en: <strong>"{task.titulo}"</strong>
-      </div>
-    ))
-
-    try {
-      const response = await fetch(
-        `https://wlserver-production.up.railway.app/api/actividades/${task.id}`
-      )
-
-      const result: {
-        success: boolean
-        data?: {
-          pendientes?: Pendiente[]
-        }
-      } = await response.json()
-
-      if (result.success && result.data?.pendientes) {
-        setCurrentTaskPendientes(result.data.pendientes)
-
-        if (result.data.pendientes.length > 0) {
-          showPendientesList(result.data.pendientes)
-        } else {
-          noPendientes()
-        }
-      }
-    } catch (error) {
-      console.error("Error:", error)
-      noPendientes()
-    }
-  }
-
-  const showPendientesList = async (pendientes: any[]) => {
-    const pendientesList = (
-      <div className="space-y-3 mt-3">
-        {pendientes.map((p, idx) => (
-          <div key={p.id || idx} className="p-4 rounded-lg flex gap-3 border 
-            bg-gray-50 hover:bg-gray-100 border-gray-200
-            dark:bg-[#1a1a1a] dark:hover:bg-[#252525] dark:border-[#2a2a2a]">
-            <Badge className="shrink-0 bg-[#6841ea] text-white">
-              {idx + 1}
-            </Badge>
-            <span className={`${p.checked ? "line-through" : ""} flex-1 
-              ${p.checked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"}`}>
-              {p.text}
-            </span>
-            {p.checked && (
-              <Badge className="text-xs 
-                bg-green-100 text-green-700
-                dark:bg-green-900 dark:text-green-300">
-                ✓
-              </Badge>
-            )}
-          </div>
-        ))}
-      </div>
-    )
-
-    await addMessageWithTyping("bot", (
-      <div>
-        <p className="mb-3 text-gray-700 dark:text-gray-300">
-          Esta tarea tiene <strong>{pendientes.length}</strong> pendiente{pendientes.length !== 1 ? "s" : ""}:
-        </p>
-        {pendientesList}
-      </div>
-    ))
-
-    setTimeout(async () => {
-      await addMessageWithTyping("bot", "Escribe los números de los pendientes en los que trabajaste, separados por comas. O escribe '0' si trabajaste en la tarea en general.")
-      setStep("ask-pendiente-selection")
-    }, 1000)
-  }
-
-  const noPendientes = async () => {
-    await addMessageWithTyping("bot", "Esta tarea no tiene pendientes específicos.", 500)
-    setTimeout(() => {
-      askForTime()
-    }, 700)
-  }
-
-  const handlePendienteSelection = (input: string) => {
-    addMessage("user", input)
-
-    if (input.trim() === "0") {
-      addMessage("system", (
-        <div className="flex items-center gap-2 text-[#6841ea]">
-          <CheckCircle2 className="w-4 h-4" />
-          Trabajaste en la tarea en general
-        </div>
-      ))
-      setSelectedPendienteIds([])
-    } else {
-      const numbers = input.split(",").map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0 && n <= currentTaskPendientes.length)
-
-      if (numbers.length === 0) {
-        addMessage("bot", "No reconocí números válidos. Escribe los números de los pendientes o '0' para ninguno.")
-        return
-      }
-
-      const selected = numbers.map(n => currentTaskPendientes[n - 1].id || currentTaskPendientes[n - 1].text)
-      setSelectedPendienteIds(selected)
-
-      const selectedNames = numbers.map(n => currentTaskPendientes[n - 1].text).join(", ")
-      addMessage("system", (
-        <div className="flex items-center gap-2 text-[#6841ea]">
-          <CheckCircle2 className="w-4 h-4" />
-          Pendientes: {selectedNames}
-        </div>
-      ))
-    }
-
-    setTimeout(() => {
-      askForTime()
-    }, 500)
-  }
-
-  const askForTime = async () => {
-    await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-        <Clock className="w-4 h-4 text-[#6841ea]" />
-        ¿Cuántos minutos trabajaste en esta tarea?
-      </div>
-    ))
-    setStep("ask-time")
-  }
-
-  const handleTimeInput = async (input: string) => {
-    const minutes = parseInt(input.trim())
-
-    if (isNaN(minutes) || minutes <= 0) {
-      addMessage("bot", "Por favor escribe un número válido de minutos.")
-      return
-    }
-
-    setCurrentTime(input)
-    addMessage("user", `${minutes} minutos`)
-
-    setTimeout(async () => {
-      await addMessageWithTyping("bot", "Describe brevemente qué trabajaste en esta tarea:")
-      setStep("ask-description")
-    }, 500)
-  }
-
-  const handleDescriptionInput = async (input: string) => {
-    if (!input.trim()) {
-      addMessage("bot", "Por favor describe tu trabajo para continuar.")
-      return
-    }
-
-    setCurrentDescription(input)
-    addMessage("user", input)
-
-    const report: TaskReport = {
-      taskId: currentTask.id,
-      titulo: currentTask.titulo,
-      tiempoTrabajado: parseInt(currentTime),
-      descripcionTrabajo: input.trim(),
-      completada: true,
-    }
-
-    setTaskReports((prev) => [...prev, report])
-    addMessage("system", (
-      <div className="flex items-center gap-2 text-[#6841ea]">
-        <CheckCircle2 className="w-4 h-4" />
-        <strong>Tarea registrada exitosamente</strong>
-      </div>
-    ))
-
-    setTimeout(async () => {
-      if (currentTaskIndex < selectedTasks.length - 1) {
-        await addMessageWithTyping("bot", `Te quedan ${selectedTasks.length - currentTaskIndex - 1} tarea${selectedTasks.length - currentTaskIndex - 1 !== 1 ? "s" : ""}. ¿Continuamos con la siguiente? (sí/no)`)
-        setStep("confirm-next")
-      } else {
-        finishAllTasks()
-      }
-    }, 500)
-
-    setCurrentTime("")
-    setCurrentDescription("")
-    setSelectedPendienteIds([])
-  }
-
-  const handleConfirmNext = (input: string) => {
-    const response = input.toLowerCase().trim()
-    addMessage("user", input)
-
-    if (response === "si" || response === "sí" || response === "s") {
-      setCurrentTaskIndex((prev) => prev + 1)
-      setTimeout(() => {
-        startTaskWorkflow()
-      }, 500)
-    } else {
-      finishAllTasks()
-    }
-  }
-
-  const finishAllTasks = async () => {
-    await addMessageWithTyping("bot", (
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-        <PartyPopper className="w-5 h-5 text-[#6841ea]" />
-        ¡Excelente trabajo! Has registrado <strong>{taskReports.length}</strong> tarea{taskReports.length !== 1 ? "s" : ""} con un total de <strong>{taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos</strong>.
-      </div>
-    ))
-    setTimeout(async () => {
-      await addMessageWithTyping("bot", "¿Quieres enviar el reporte? (sí/no)")
-      setStep("finished")
-    }, 1000)
-  }
-
-  const handleSendConfirmation = async (input: string) => {
-    const response = input.toLowerCase().trim()
-    addMessage("user", input)
-
-    if (response === "si" || response === "sí" || response === "s") {
-      await sendReport()
-    } else {
-      addMessage("bot", "Entendido. Tu reporte no fue enviado. Puedes cerrar sesión cuando quieras.")
-    }
-  }
-
-  const sendReport = async () => {
-    setStep("sending")
-    addMessage("system", (
-      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Enviando reporte...
-      </div>
-    ))
-
-    const reporte: ReporteCompleto = {
-      colaborador,
-      fecha: new Date().toISOString(),
-      tareas: taskReports,
-      totalTiempo: taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0),
-    }
-
-    try {
-      await sendReporte(reporte)
-      setShowSuccessDialog(true)
-      addMessage("system", (
-        <div className="flex items-center gap-2 text-[#6841ea]">
-          <CheckCircle2 className="w-4 h-4" />
-          <strong>Reporte enviado exitosamente</strong>
-        </div>
-      ))
-    } catch (error) {
-      addMessage("system", (
-        <div className="flex items-center gap-2 text-red-500">
-          <AlertCircle className="w-4 h-4" />
-          Error: {error instanceof Error ? error.message : "Error desconocido"}
-        </div>
-      ))
-      addMessage("bot", "Hubo un error al enviar. ¿Quieres intentar nuevamente? (sí/no)")
-      setStep("finished")
-    }
-  }
 
   const handleUserInput = (e: React.FormEvent) => {
     e.preventDefault()
@@ -842,37 +856,19 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
     const input = userInput.trim()
     setUserInput("")
 
-    switch (step) {
-      case "ask-task-selection":
-        handleTaskSelection(input)
-        break
-      case "ask-pendiente-selection":
-        handlePendienteSelection(input)
-        break
-      case "ask-time":
-        handleTimeInput(input)
-        break
-      case "ask-description":
-        handleDescriptionInput(input)
-        break
-      case "confirm-next":
-        handleConfirmNext(input)
-        break
-      case "finished":
-        handleSendConfirmation(input)
-        break
-      default:
-        break
+    addMessage("user", input)
+
+    // En el estado "finished", el usuario puede hacer preguntas o comentarios
+    if (step === "finished") {
+      addMessage("bot", (
+        <div className="text-gray-700 dark:text-gray-300">
+          He recibido tu comentario. ¿Te gustaría cerrar sesión o tienes alguna pregunta sobre el análisis?
+        </div>
+      ))
     }
   }
 
-  const canUserType = ![
-    "welcome",
-    "show-tasks",
-    "loading-pendientes",
-    "show-pendientes",
-    "sending"
-  ].includes(step)
+  const canUserType = step !== "loading-analysis"
 
   const handleVoiceMessageClick = (voiceText: string) => {
     setUserInput(voiceText)
@@ -900,10 +896,10 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
               </div>
 
               <h3 className={`text-xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                {isListening ? '🎤 Escuchando...' : 'Micrófono listo'}
+                {isListening ? ' Escuchando...' : 'Micrófono listo'}
               </h3>
 
-              <div className={`mb-6 p-4 rounded-lg min-h-20 ${theme === 'dark' ? 'bg-[#2a2a2a]' : 'bg-gray-100'}`}>
+              {/* <div className={`mb-6 p-4 rounded-lg min-h-20 ${theme === 'dark' ? 'bg-[#2a2a2a]' : 'bg-gray-100'}`}>
                 {voiceTranscript ? (
                   <p className={`text-lg ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                     {voiceTranscript}
@@ -915,7 +911,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
                     <div className="w-2 h-2 bg-[#6841ea] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                   </div>
                 )}
-              </div>
+              </div> */}
 
               <div className="flex gap-3">
                 <button
@@ -942,44 +938,91 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
       {/* Header fijo - Oculto en ventana PiP */}
       {!isInPiPWindow && (
         <div className="fixed top-0 left-0 right-0 z-50">
-          {/* Capa de blur + gradiente SOLO ARRIBA */}
+          {/* mejorar capas de arriba porfa que sea primero muy oscuro y abjao */}
           <div
             className={`
               pointer-events-none
               absolute top-0 left-0 right-0
-              h-24
+              
               bg-gradient-to-b
+              h-30
               ${theme === "dark"
-                ? "from-[#101010]/90 via-[#101010]/90 to-transparent"
+                ? "from-[#101010] via-[#101010]/90 to-transparent"
                 : "from-white/70 via-white/40 to-transparent"}
             `}
           />
+          <div
+            className={`
+    pointer-events-none
+    absolute
+    top-0
+    left-0
+    right-0
+    h-25
+    bg-gradient-to-b
+    ${theme === "dark"
+                ? "from-[#101010]/90 via-[#101010]/90 to-transparent"
+                : "from-white/70 via-white/40 to-transparent"}
+  `}
+          />
 
-          <div className="relative max-w-4xl mx-auto p-4">
+
+          <div className="relative max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="rounded-full flex items-center justify-center">
+                <div className="rounded-full flex items-center justify-center animate-tilt">
                   <Image
                     src="/icono.webp"
                     alt="Chat"
                     width={80}
                     height={80}
                     className="
-                      object-contain
-                      rounded-full
-                      drop-shadow-[0_0_6px_rgba(104,65,234,0.8)]
-                      drop-shadow-[0_0_16px_rgba(168,139,255,0.9)]
-                    "
+      object-contain
+      rounded-full
+      drop-shadow-[0_0_16px_rgba(168,139,255,0.9)]
+    "
                   />
+
+                  <style jsx>{`
+    @keyframes tilt {
+      /* quieto */
+      0%, 85%, 100% {
+        transform: rotate(0deg);
+      }
+
+      /* inclinación */
+      88% {
+        transform: rotate(-6deg);
+      }
+      91% {
+        transform: rotate(6deg);
+      }
+      94% {
+        transform: rotate(-4deg);
+      }
+      97% {
+        transform: rotate(4deg);
+      }
+    }
+
+    .animate-tilt {
+      display: inline-flex;
+      transform-origin: center;
+      animation: tilt 4s ease-in-out infinite;
+      will-change: transform;
+    }
+  `}</style>
                 </div>
 
+
+
                 <div>
-                  <h1 className="text-lg font-bold">Asistente de Tareas</h1>
+                  <h1 className="text-lg font-bold">Asistente</h1>
                   <p
                     className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"
                       }`}
                   >
-                    {displayName}
+                    {displayName} • {colaborador.email}
                   </p>
                 </div>
               </div>
@@ -1156,47 +1199,15 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
             )}
           </div>
 
-          {/* Resumen de tareas */}
-          {taskReports.length > 0 && (
+          {/* Mostrar análisis del asistente si está disponible */}
+          {assistantAnalysis && (
             <div className={`mt-4 rounded-lg p-4 border 
               ${theme === "dark"
                 ? "bg-[#1a1a1a] border-[#2a2a2a]"
                 : "bg-white border-gray-200"}`}>
               <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-4 h-4 text-[#6841ea]" />
-                <h3 className="font-bold text-sm">Resumen del Reporte</h3>
-              </div>
-
-              <div className="space-y-2">
-                {taskReports.map((report, idx) => (
-                  <div
-                    key={report.taskId}
-                    className={`flex items-center justify-between text-sm py-2 px-3 rounded-lg border 
-                      ${theme === "dark"
-                        ? "bg-[#2a2a2a] border-[#353535]"
-                        : "bg-gray-100 border-gray-200"}`}
-                  >
-                    <span className={`truncate flex-1 font-medium 
-                      ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}>
-                      {idx + 1}. {report.titulo}
-                    </span>
-                    <Badge className="bg-[#6841ea] text-xs px-3 py-1">
-                      {report.tiempoTrabajado} min
-                    </Badge>
-                  </div>
-                ))}
-
-                <div className={`flex items-center justify-between font-semibold pt-3 px-3 text-sm 
-                  ${theme === "dark" ? "border-t border-[#353535]" : "border-t border-gray-200"}`}>
-                  <span className={`flex items-center gap-2 
-                    ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
-                    <Clock className="w-4 h-4 text-[#6841ea]" />
-                    Total:
-                  </span>
-                  <span className="text-[#6841ea]">
-                    {taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos
-                  </span>
-                </div>
+                <Brain className="w-4 h-4 text-[#6841ea]" />
+                <h3 className="font-bold text-sm">Análisis Generado para: {colaborador.email}</h3>
               </div>
             </div>
           )}
@@ -1204,11 +1215,16 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
       </div>
 
       {/* Input fijo en la parte inferior */}
-      <div className={`fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t
-        ${theme === "dark"
-          ? "from-[#101010] via-[#101010] to-transparent"
-          : "from-white/70 via-white/40 to-transparent"}
-      `}>
+      <div
+        className={`
+    fixed bottom-0 left-0 right-0 z-50
+    // bg-gradient-to-t
+    ${theme === "dark"
+            ? "bg-[#101010]"
+            : "bg-white"}
+  `}
+      >
+
         <div className="max-w-4xl mx-auto p-4">
           <form onSubmit={handleUserInput} className="flex gap-2 items-center">
             <Input
@@ -1216,12 +1232,12 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
               type="text"
               placeholder={
                 canUserType
-                  ? "Escribe tu respuesta..."
-                  : "Espera a que el asistente termine..."
+                  ? "Escribe tu pregunta o comentario..."
+                  : "Obteniendo análisis..."
               }
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              disabled={!canUserType}
+              // disabled={!canUserType}
               className={`flex-1 h-12 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#6841ea] focus:border-[#6841ea]
                 ${theme === "dark"
                   ? "bg-[#2a2a2a] text-white placeholder:text-gray-500 border-[#353535] hover:border-[#6841ea]"
@@ -1233,7 +1249,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
             <Button
               type="button"
               onClick={startRecording}
-              disabled={!canUserType}
+              // disabled={!canUserType}
               className={`h-12 w-14 p-0 rounded-lg transition-all ${isRecording
                 ? "bg-red-600 hover:bg-red-700 animate-pulse"
                 : "bg-[#6841ea] hover:bg-[#5a36d4]"
@@ -1271,28 +1287,11 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-[#6841ea] text-xl">
               <PartyPopper className="w-6 h-6" />
-              ¡Reporte enviado exitosamente!
+              ¡Análisis completado!
             </AlertDialogTitle>
             <AlertDialogDescription className={`${theme === "dark" ? "text-gray-300" : "text-gray-600"
               }`}>
-              Tu reporte ha sido enviado y registrado correctamente.
-              <div className={`mt-4 p-4 rounded-lg border ${theme === "dark"
-                ? "bg-[#2a2a2a] border-[#353535]"
-                : "bg-gray-100 border-gray-200"
-                }`}>
-                <p className={`font-semibold mb-2 ${theme === "dark" ? "text-white" : "text-gray-900"
-                  }`}>Resumen:</p>
-                <ul className="space-y-2">
-                  <li className="flex items-center gap-2 text-[#6841ea]">
-                    <CheckCircle2 className="w-4 h-4" />
-                    {taskReports.length} tarea{taskReports.length !== 1 ? "s" : ""} registrada{taskReports.length !== 1 ? "s" : ""}
-                  </li>
-                  <li className="flex items-center gap-2 text-[#6841ea]">
-                    <Clock className="w-4 h-4" />
-                    {taskReports.reduce((acc, t) => acc + t.tiempoTrabajado, 0)} minutos totales
-                  </li>
-                </ul>
-              </div>
+              El análisis de tus actividades ha sido generado exitosamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1328,24 +1327,7 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
 
             <AlertDialogDescription className={`text-center pt-4 pb-2 ${theme === "dark" ? "text-gray-300" : "text-gray-600"
               }`}>
-              {taskReports.length > 0 ? (
-                <div className="space-y-3">
-                  <p>
-                    Tienes <strong className="text-[#6841ea]">{taskReports.length}</strong> tarea{taskReports.length !== 1 ? "s" : ""} registrada{taskReports.length !== 1 ? "s" : ""}.
-                  </p>
-                  <div className={`p-4 rounded-lg border ${theme === "dark"
-                    ? "bg-[#2a2a2a] border-[#353535]"
-                    : "bg-gray-100 border-gray-200"
-                    }`}>
-                    <p className="text-sm flex items-center justify-center gap-2 font-medium">
-                      <AlertCircle className="w-4 h-4 text-[#6841ea]" />
-                      ¿Estás seguro que deseas salir?
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <p>¿Estás seguro que deseas salir?</p>
-              )}
+              <p>¿Estás seguro que deseas salir del asistente?</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -1369,3 +1351,13 @@ export function ChatBot({ colaborador, actividades, onLogout }: ChatBotProps) {
     </div>
   )
 }
+<style jsx>{`
+  @keyframes shake-x {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+  .animate-shake-x {
+    animation: shake-x 0.5s infinite;
+  }
+`}</style>

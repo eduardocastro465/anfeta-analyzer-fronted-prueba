@@ -2,12 +2,22 @@ import type React from "react";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Registro de Actividades - ChatBot",
   description: "Asistente para registro de tareas y actividades",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Anfeta Chatbot",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       // {
@@ -34,7 +44,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+
+      {/* poner head */}
+      <head>
+        <meta name="theme-color" content="#000000" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="icon" type="image/png" href="/icon-192.png" />
+      </head>
       <body className={`font-sans antialiased`}>
+        <ServiceWorkerRegister />
         {children}
 
         <Analytics />

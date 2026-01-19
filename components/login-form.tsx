@@ -29,6 +29,7 @@ import {
   RefreshCw,
   Moon,
   Sun,
+  ChevronDown,
 } from "lucide-react";
 import Image from "next/image"
 
@@ -39,13 +40,8 @@ interface LoginFormProps {
 export function LoginForm({ onLogin }: LoginFormProps) {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
-  const [colaboradorInfo, setColaboradorInfo] = useState<Colaborador | null>(
-    null
-  );
-  const [actividadesCount, setActividadesCount] = useState<number>(0);
-  const [actividades, setActividades] = useState<Actividad[]>([]);
+  const [colaboradorInfo, setColaboradorInfo] = useState<Colaborador | null>(null);
   const [isLoadingColaboradores, setIsLoadingColaboradores] = useState(true);
-  const [isLoadingActividades, setIsLoadingActividades] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -82,42 +78,21 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     if (selectedId) {
       const colaborador = colaboradores.find((c) => c._id === selectedId);
       setColaboradorInfo(colaborador || null);
-
-      if (colaborador?.email) {
-        loadActividades(colaborador.email);
-      }
     } else {
       setColaboradorInfo(null);
-      setActividadesCount(0);
-      setActividades([]);
     }
   }, [selectedId, colaboradores]);
 
-  const loadActividades = async (email: string) => {
-    setIsLoadingActividades(true);
-    try {
-      const data = await fetchActividadesByUser(email);
-      setActividades(data);
-      setActividadesCount(data.length);
-    } catch (err) {
-      console.error(err);
-      setActividades([]);
-      setActividadesCount(0);
-    } finally {
-      setIsLoadingActividades(false);
-    }
-  };
-
   const handleAcceder = () => {
-    if (colaboradorInfo && actividades.length > 0) {
-      onLogin(colaboradorInfo, actividades);
+    if (colaboradorInfo) {
+      // Pasar un array vacío de actividades ya que no necesitamos cargarlas
+      onLogin(colaboradorInfo, []);
     }
   };
 
   const getDisplayName = (colaborador: Colaborador) => {
     if (colaborador.firstName || colaborador.lastName) {
-      return `${colaborador.firstName || ""} ${colaborador.lastName || ""
-        }`.trim();
+      return `${colaborador.firstName || ""} ${colaborador.lastName || ""}`.trim();
     }
     return colaborador.email.split("@")[0];
   };
@@ -144,17 +119,18 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             <div className="flex justify-center mb-5">
               <div className="bg-transparent rounded-full flex items-center justify-center">
                 <Image
-                                   src="/icono.webp"
-                                   alt="Chat"
-                                   width={100}
-                                   height={100}
-                                   className="
-                               object-contain
-                               rounded-full
-                               drop-shadow-[0_0_6px_rgba(104,65,234,0.8)]
-                               drop-shadow-[0_0_16px_rgba(168,139,255,0.9)]
-                             "
-                                 />  </div>
+                  src="/icono.webp"
+                  alt="Chat"
+                  width={100}
+                  height={100}
+                  className="
+                    object-contain
+                    rounded-full
+                    drop-shadow-[0_0_6px_rgba(104,65,234,0.8)]
+                    drop-shadow-[0_0_16px_rgba(168,139,255,0.9)]
+                  "
+                />
+              </div>
             </div>
 
             <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
@@ -214,9 +190,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     ))}
                   </select>
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <ChevronDown className="w-4 h-4 text-gray-400" />
                   </div>
                 </div>
               )}
@@ -253,25 +227,15 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                       </div>
                     </div>
 
-                    {/* Estado de tareas */}
-                    <div className="pt-3 border-t border-gray-100/50 dark:border-neutral-700/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-700 dark:text-gray-300 text-sm">
-                          Tareas asignadas
+                    {/* Información adicional del colaborador */}
+                    <div className="pt-3 border-t border-gray-100/50 dark:border-neutral-700/50 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-700 dark:text-gray-300 text-xs">
+                          Correo: {colaboradorInfo.email}
                         </span>
-                        <div className="flex items-center">
-                          {isLoadingActividades ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-[#6841ea]" />
-                          ) : (
-                            <div className={`px-2.5 py-1 rounded text-xs font-medium ${actividadesCount > 0
-                                ? 'bg-[#6841ea]/10 dark:bg-[#6841ea]/20 text-[#6841ea] dark:text-[#9270ff]'
-                                : 'bg-gray-100/70 dark:bg-neutral-800/50 text-gray-600 dark:text-gray-400'
-                              }`}>
-                              {actividadesCount} {actividadesCount === 1 ? 'tarea' : 'tareas'}
-                            </div>
-                          )}
-                        </div>
                       </div>
+                    
                     </div>
                   </div>
                 </div>
@@ -279,25 +243,12 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                 {/* Botón de acción */}
                 <button
                   onClick={handleAcceder}
-                  disabled={actividadesCount === 0 || isLoadingActividades}
-                  className={`w-full h-11 rounded-lg font-medium transition-all text-sm ${actividadesCount > 0 && !isLoadingActividades
-                      ? 'bg-[#6841ea] hover:bg-[#5a36d4] text-white shadow hover:shadow-md'
-                      : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    }`}
+                  className="w-full h-11 rounded-lg font-medium transition-all text-sm bg-[#6841ea] hover:bg-[#5a36d4] text-white shadow hover:shadow-md"
                 >
-                  {isLoadingActividades ? (
-                    <span className="flex items-center justify-center">
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Cargando...
-                    </span>
-                  ) : actividadesCount > 0 ? (
-                    <span className="flex items-center justify-center">
-                      Iniciar Sesión
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </span>
-                  ) : (
-                    "No hay tareas asignadas"
-                  )}
+                  <span className="flex items-center justify-center">
+                    Iniciar Sesión
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </span>
                 </button>
               </div>
             )}
