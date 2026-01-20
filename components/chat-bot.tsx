@@ -255,6 +255,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
         "http://localhost:4000/api/v1/assistant/actividades-con-revisiones",
         {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
@@ -508,7 +509,8 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
               <div className="p-3 space-y-2">
                 {tareas.map((tarea, idx) => {
                   const diasPendiente = Math.floor(
-                    (new Date().getTime() - new Date(tarea.fechaCreacion).getTime()) /
+                    (new Date().getTime() -
+                      new Date(tarea.fechaCreacion).getTime()) /
                       (1000 * 60 * 60 * 24),
                   );
 
@@ -610,7 +612,8 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
                   <tbody>
                     {tareas.map((tarea, idx) => {
                       const diasPendiente = Math.floor(
-                        (new Date().getTime() - new Date(tarea.fechaCreacion).getTime()) /
+                        (new Date().getTime() -
+                          new Date(tarea.fechaCreacion).getTime()) /
                           (1000 * 60 * 60 * 24),
                       );
 

@@ -63,3 +63,42 @@ export interface ActividadesApiResponse {
   success: boolean
   data: Actividad[]
 }
+export interface AssistantAnalysis {
+  success: boolean;
+  answer: string;
+  provider: string;
+  metrics: {
+    totalActividades: number;
+    totalPendientes: number;
+    pendientesAltaPrioridad: number;
+    tiempoEstimadoTotal: string;
+    actividadesConPendientes: number;
+  };
+  data: {
+    actividades: Array<{
+      id: string;
+      titulo: string;
+      horario: string;
+      status: string;
+      proyecto: string;
+      tieneRevisiones: boolean;
+    }>;
+    revisionesPorActividad: Array<{
+      actividadId: string;
+      actividadTitulo: string;
+      totalPendientes: number;
+      pendientesAlta: number;
+      tiempoTotal: number;
+      pendientes: Array<{
+        id: string;
+        nombre: string;
+        terminada: boolean;
+        confirmada: boolean;
+        duracionMin: number;
+        fechaCreacion: string;
+        fechaFinTerminada: string | null;
+        prioridad: string;
+      }>;
+    }>;
+  };
+}
