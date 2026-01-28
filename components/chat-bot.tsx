@@ -1233,8 +1233,17 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
       setIsCheckingHistory(true);
       console.log("Verificando si hay sesión de historial existente...");
 
+      const sessionId = conversacionActiva;
+
+      if (!sessionId) {
+        console.log("No hay ID de sesión para verificar");
+        return;
+      }
+
+      setIsCheckingHistory(true);
+      // Ahora pasas la variable correcta
       const historial: HistorialSessionResponse =
-        await obtenerHistorialSession();
+        await obtenerHistorialSession(sessionId);
 
       console.log("Historial obtenido:", historial);
 
@@ -3689,17 +3698,21 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
                               </button>
                             ))}
                             {sidebarCargando && (
-                                <div className="flex items-center justify-center py-4">
-                                  <Loader2 className="w-4 h-4 animate-spin text-[#6841ea]" />
-                                  <span className="text-xs text-gray-500 ml-2">Cargando historial...</span>
-                                </div>
-                              )}
+                              <div className="flex items-center justify-center py-4">
+                                <Loader2 className="w-4 h-4 animate-spin text-[#6841ea]" />
+                                <span className="text-xs text-gray-500 ml-2">
+                                  Cargando historial...
+                                </span>
+                              </div>
+                            )}
 
-                              {!sidebarCargando && data.length === 0 && (
-                                <div className="p-4 text-center">
-                                  <p className="text-xs text-gray-500">No hay conversaciones anteriores</p>
-                                </div>
-                              )}
+                            {!sidebarCargando && data.length === 0 && (
+                              <div className="p-4 text-center">
+                                <p className="text-xs text-gray-500">
+                                  No hay conversaciones anteriores
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
