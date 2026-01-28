@@ -5,9 +5,8 @@ import type {
   ActividadesApiResponse,
 } from "./types";
 
-const BASE_URL = "https://wlserver-production.up.railway.app";
-
-const BASE_URL_BACK = "http://localhost:4000/api/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+const BASE_URL_BACK = process.env.NEXT_PUBLIC_BASE_URL_BACK;
 
 export async function SignIn(email: string): Promise<any> {
   try {
