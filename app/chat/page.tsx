@@ -17,7 +17,7 @@ export default function ChatPage() {
     if (savedColaborador) {
       setColaborador(JSON.parse(savedColaborador));
     }
-    
+
     if (savedActividades) {
       setActividades(JSON.parse(savedActividades));
     }
@@ -27,13 +27,15 @@ export default function ChatPage() {
 
   // Mientras se lee el localStorage, no renderizamos nada o mostramos un loader
   if (!isReady) {
-    return null; 
+    return null;
   }
 
   if (!colaborador) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="text-muted-foreground">Sesión no encontrada. Por favor, inicia sesión.</p>
+        <p className="text-muted-foreground">
+          Sesión no encontrada. Por favor, inicia sesión.
+        </p>
       </div>
     );
   }

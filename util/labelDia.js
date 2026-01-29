@@ -1,35 +1,42 @@
+// @/util/labelDia.ts
+
 export function obtenerLabelDia(fechaISO) {
   const fecha = new Date(fechaISO);
   const hoy = new Date();
+  const ayer = new Date(hoy);
+  ayer.setDate(ayer.getDate() - 1);
 
-  const esHoy =
-    fecha.toDateString() === hoy.toDateString();
+  // Normalizar fechas a medianoche para comparación
+  const normalizarFecha = (f) => {
+    return new Date(f.getFullYear(), f.getMonth(), f.getDate());
+  };
 
-  const ayer = new Date();
-  ayer.setDate(hoy.getDate() - 1);
+  const fechaNormalizada = normalizarFecha(fecha);
+  const hoyNormalizada = normalizarFecha(hoy);
+  const ayerNormalizada = normalizarFecha(ayer);
 
-  const esAyer =
-    fecha.toDateString() === ayer.toDateString();
-
-  if (esHoy) return "Hoy";
-  if (esAyer) return "Ayer";
-
-  return fecha.toLocaleDateString("es-MX", {
-    day: "numeric",
-    month: "long",
-    year: "numeric"
-  });
+  if (fechaNormalizada.getTime() === hoyNormalizada.getTime()) {
+    return "Hoy";
+  } else if (fechaNormalizada.getTime() === ayerNormalizada.getTime()) {
+    return "Ayer";
+  } else if (fechaNormalizada > ayerNormalizada) {
+    // Últimos 7 días
+    const diasSemana = [
+      "Domingo",
+      "Lunes",
+      "Martes",
+      "Miércoles",
+      "Jueves",
+      "Viernes",
+      "Sábado",
+    ];
+    return diasSemana[fecha.getDay()];
+  } else {
+    // Fechas más antiguas
+    return fecha.toLocaleDateString("es-MX", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
 }
-
-export function agruparPorDia(data) {
-  return data.reduce(
-    (acc, conv) => {
-      const label = obtenerLabelDia(conv.createdAt);
-      acc[label] ??= [];
-      acc[label].push(conv);
-      return acc;
-    },
-    {}
-  );
-}
-

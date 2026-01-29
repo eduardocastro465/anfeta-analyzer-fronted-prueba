@@ -9,7 +9,8 @@ import { logout } from "../lib/api";
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentColaborador, setCurrentColaborador] = useState<Colaborador | null>(null);
+  const [currentColaborador, setCurrentColaborador] =
+    useState<Colaborador | null>(null);
   const [userActividades, setUserActividades] = useState<Actividad[]>([]);
   const [isLoading, setIsLoading] = useState(true); // Estado para hidratación
 
@@ -54,7 +55,11 @@ export default function Home() {
 
   // 3. Evitar renderizado inconsistente durante la carga
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center bg-background">Cargando sesión...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        Cargando sesión...
+      </div>
+    );
   }
 
   if (!isLoggedIn || !currentColaborador) {
