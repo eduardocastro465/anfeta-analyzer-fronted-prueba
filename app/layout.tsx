@@ -7,7 +7,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Registro de Actividades - ChatBot",
   description: "Asistente para registro de tareas y actividades",
-  generator: "v0.app",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

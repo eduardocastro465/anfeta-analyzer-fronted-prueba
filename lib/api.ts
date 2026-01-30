@@ -7,7 +7,7 @@ import type {
 
 const BASE_URL = "https://wlserver-production.up.railway.app";
 
-const BASE_URL_BACK = "http://localhost:4000/api/v1";
+const BASE_URL_BACK = "http://localhost:4001/api/v1";
 
 export async function SignIn(email: string): Promise<any> {
   try {
@@ -146,7 +146,7 @@ export async function sendTaskValidation(data: {
 }) {
   try {
     const response = await fetch(
-      "http://localhost:4000/api/v1/assistant/validar-explicacion",
+      "http://localhost:4001/api/v1/assistant/validar-explicacion",
       {
         method: "POST",
         credentials: "include",
@@ -174,7 +174,7 @@ export async function sendTaskValidation(data: {
 // export async function obtenerSiguienteTarea() {
 //   try {
 //     const response = await fetch(
-//       "http://localhost:4000/api/v1/assistant/siguiente-tarea",
+//       "http://localhost:4001/api/v1/assistant/siguiente-tarea",
 //       {
 //         method: "GET",
 //         credentials: "include",

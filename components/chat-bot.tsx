@@ -501,7 +501,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
       setIsCheckingAfterHours(true);
 
       const response = await fetch(
-        "http://localhost:4000/api/v1/assistant/verificar-actividades-finalizadas",
+        "http://localhost:4001/api/v1/assistant/verificar-actividades-finalizadas",
         {
           method: "POST",
           credentials: "include",
@@ -1658,7 +1658,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
       console.log("Payload a enviar:", payload);
 
       const response = await fetch(
-        "http://localhost:4000/api/v1/assistant/guardar-explicaciones",
+        "http://localhost:4001/api/v1/assistant/guardar-explicaciones",
         {
           method: "POST",
           credentials: "include",
@@ -1883,7 +1883,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
       };
 
       const response = await fetch(
-        "http://localhost:4000/api/v1/assistant/actividades-con-revisiones",
+        "http://localhost:4001/api/v1/assistant/actividades-con-revisiones",
         {
           method: "POST",
           credentials: "include",
