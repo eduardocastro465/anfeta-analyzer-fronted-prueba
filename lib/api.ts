@@ -172,6 +172,42 @@ export async function sendPendienteValidarYGuardar(data: {
   }
 }
 
+export async function sendTaskValidation(data: {
+  taskId: string;
+  taskName: string;
+  activityTitle: string;
+  explanation: string;
+  confirmed: boolean;
+  priority: string;
+  duration: number;
+}) {
+  try {
+    const response = await fetch(`${BASE_URL_BACK}/assistant/validar-tarea`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        taskId: data.taskId,
+        taskName: data.taskName,
+        activityTitle: data.activityTitle,
+        explanation: data.explanation,
+        confirmed: data.confirmed,
+        priority: data.priority,
+        duration: data.duration,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error validando tarea:", error);
+    return { valida: false, razon: "Error de conexión" };
+  }
+}
+
 export async function obtenerHistorialSidebar() {
   try {
     const response = await fetch(
