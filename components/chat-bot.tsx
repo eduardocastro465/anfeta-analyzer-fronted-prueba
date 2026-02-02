@@ -74,7 +74,6 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const pipWindowRef = useRef<Window | null>(null);
   const explanationProcessedRef = useRef<boolean>(false);
-  // const recognitionRef = useRef<any>(null);
   const assistantAnalysisRef = useRef<AssistantAnalysis | null>(null);
 
   // ==================== HOOKS PERSONALIZADOS ====================
@@ -111,17 +110,9 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
   const [sidebarCargado, setSidebarCargado] = useState(false);
   const [sidebarCargando, setSidebarCargando] = useState(true);
   const [data, setData] = useState<ConversacionSidebar[]>([]);
-  const [conversaciones, setConversaciones] = useState<ConversacionSidebar[]>(
-    [],
-  );
-
-  // ==================== ESTADOS: VOICE RECOGNITION (MODAL REPORTE) ====================
-  // const [isRecording, setIsRecording] = useState(false);
-  // const [isListening, setIsListening] = useState(false);
-  // const [voiceTranscript, setVoiceTranscript] = useState("");
 
   // ==================== ESTADOS: REPORTE DE ACTIVIDADES ====================
-  const [actividadesDiarias, setActividadesDiarias] = useState<
+  const [actividadesDiarias] = useState<
     ActividadDiaria[]
   >([]);
   const [pendientesReporte, setPendientesReporte] = useState<
@@ -130,17 +121,14 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
   const [guardandoReporte, setGuardandoReporte] = useState(false);
 
   // ==================== ESTADOS: MODAL VOZ REPORTE ====================
-  const [modoVozReporte, setModoVozReporte] = useState(false);
   const [indicePendienteActual, setIndicePendienteActual] = useState(0);
   const [pasoModalVoz, setPasoModalVoz] = useState<
     "esperando" | "escuchando" | "procesando"
   >("esperando");
 
   // ==================== ESTADOS: HORARIOS REPORTE ====================
-  const [horaInicioReporte] = useState(18); // a que hora empieza el reporte
-  const [minutoInicioReporte] = useState(30);
-  const [horaFinReporte] = useState(17); // a que hora termina el reporte
-  const [minutoFinReporte] = useState(30);
+  const [horaInicioReporte] = useState("1:33 PM"); // Formato: "HH:MM AM/PM"
+  const [horaFinReporte] = useState("11:59 PM");
 
   // ==================== ESTADOS: PiP (PICTURE-IN-PICTURE) ====================
   const [isPiPMode, setIsPiPMode] = useState(false);
@@ -306,7 +294,6 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
       .then((res) => {
         console.log("Historial del sidebar cargado:", res.data);
         setData(res.data); // ✅ Ahora existe
-        setConversaciones(res.data); // ✅ Ahora existe
         setSidebarCargado(true);
       })
       .catch((error) => {
@@ -576,7 +563,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
 
       if (response.success) {
         setMostrarModalReporte(false);
-        setModoVozReporte(false);
+    
         setIndicePendienteActual(0);
         setPasoModalVoz("esperando");
 
@@ -1748,9 +1735,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
             onStartVoiceMode={handleStartVoiceMode}
             reportConfig={{
               horaInicio: horaInicioReporte,
-              minutoInicio: minutoInicioReporte,
               horaFin: horaFinReporte,
-              minutoFin: minutoFinReporte,
             }}
           />
         </div>
@@ -1768,6 +1753,7 @@ export function ChatBot({ colaborador, onLogout }: ChatBotProps) {
           theme={theme}
           inputRef={inputRef}
           chatMode={chatMode}
+          isSpeaking={isSpeaking}
           onToggleChatMode={toggleChatMode}
         />
       )}

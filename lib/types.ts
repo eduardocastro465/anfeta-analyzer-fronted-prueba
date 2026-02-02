@@ -17,10 +17,8 @@ export interface MessageListProps {
   onStartVoiceMode?: () => void;
   setStep?: (step: string) => void;
   reportConfig?: {
-    horaInicio: number;
-    minutoInicio: number;
-    horaFin: number;
-    minutoFin: number;
+    horaInicio: string;
+    horaFin: string;
   };
 }
 export interface HeaderProps {

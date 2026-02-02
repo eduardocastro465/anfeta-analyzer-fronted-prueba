@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageItem } from "./MessageItem";
 import { MessageListProps } from "@/lib/types";
-import { verificarDescripcion } from "@/lib/api";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { verificarHorarioReporte } from "@/util/HorarioReporte";
 
 export function MessageList({
   messages,
@@ -21,35 +21,26 @@ export function MessageList({
   onVoiceMessageClick,
   scrollRef,
   assistantAnalysis,
+  reportConfig,
   onOpenReport,
   onStartVoiceMode,
-  reportConfig = {
-    horaInicio: 17,
-    minutoInicio: 30,
-    horaFin: 24,
-    minutoFin: 59,
-  },
 }: MessageListProps) {
   // ========== ESTADOS ==========
-  const [tareasConDescripcion, setTareasConDescripcion] = useState<Set<string>>(
-    new Set()
+  const [tareasConDescripcion] = useState<Set<string>>(
+    new Set(),
   );
-
-  // ========== VALORES COMPUTADOS (MEMOIZADOS) ==========
   
-  // Verificar si estamos en horario de reporte
-  const esHoraReporte = useMemo(() => {
-    const now = new Date();
-    const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
-    const startTotalMinutes =
-      reportConfig.horaInicio * 60 + reportConfig.minutoInicio;
-    const endTotalMinutes = reportConfig.horaFin * 60 + reportConfig.minutoFin;
-    
-    return (
-      currentTotalMinutes >= startTotalMinutes &&
-      currentTotalMinutes <= endTotalMinutes
-    );
-  }, [reportConfig]);
+  // Estado para forzar re-renders cada minuto
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Actualizar la hora cada minuto
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Actualizar cada 60 segundos
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Filtrar actividades con tareas pendientes (sin descripción)
   const actividadesConTareasPendientes = useMemo(() => {
@@ -57,9 +48,8 @@ export function MessageList({
 
     return assistantAnalysis.data.revisionesPorActividad
       .map((revision) => {
-        // Filtrar tareas que NO tienen descripción guardada
         const tareasPendientes = revision.tareasConTiempo.filter(
-          (tarea) => !tareasConDescripcion.has(tarea.id)
+          (tarea) => !tareasConDescripcion.has(tarea.id),
         );
 
         return {
@@ -72,16 +62,23 @@ export function MessageList({
 
   const hayTareas = actividadesConTareasPendientes.length > 0;
 
-  const totalTareasPendientes = useMemo(
-    () =>
-      actividadesConTareasPendientes.reduce(
-        (sum, revision) => sum + revision.tareasConTiempo.length,
-        0
-      ),
-    [actividadesConTareasPendientes]
-  );
+  // Calcular total de tareas pendientes
+  const totalTareasPendientes = useMemo(() => {
+    return actividadesConTareasPendientes.reduce(
+      (acc, revision) => acc + revision.tareasConTiempo.length,
+      0,
+    );
+  }, [actividadesConTareasPendientes]);
 
-  // ========== FUNCIONES ==========
+  // Determinar si es hora de reporte - ahora depende de currentTime
+  const esHoraReporte = useMemo(() => {
+    if (!reportConfig?.horaInicio || !reportConfig?.horaFin) return false;
+
+    return verificarHorarioReporte(
+      reportConfig.horaInicio,
+      reportConfig.horaFin,
+    );
+  }, [reportConfig, currentTime]); // Agregamos currentTime como dependencia
 
   // ✅ Auto-scroll cuando hay nuevas tareas
   useEffect(() => {
@@ -115,6 +112,22 @@ export function MessageList({
 
       {/* Indicador de typing */}
       {isTyping && <TypingIndicator theme={theme} />}
+
+      {/* Panel de tareas */}
+      {hayTareas && assistantAnalysis && (
+        <TasksPanel
+          actividadesConTareasPendientes={actividadesConTareasPendientes}
+          totalTareasPendientes={totalTareasPendientes}
+          esHoraReporte={esHoraReporte}
+          theme={theme}
+          assistantAnalysis={assistantAnalysis}
+          onOpenReport={onOpenReport}
+          onStartVoiceMode={onStartVoiceMode}
+        />
+      )}
+
+      {/* Mensaje cuando no hay tareas */}
+      {!hayTareas && assistantAnalysis && <NoTasksMessage theme={theme} />}
     </div>
   );
 }
@@ -167,7 +180,7 @@ export function TasksPanel({
         <div className="p-3 space-y-4">
           {actividadesConTareasPendientes.map((revision, idx) => {
             const actividad = assistantAnalysis.data.actividades.find(
-              (act: any) => act.id === revision.actividadId
+              (act: any) => act.id === revision.actividadId,
             );
 
             if (!actividad) return null;
@@ -204,7 +217,12 @@ interface ActivityItemProps {
   theme: "light" | "dark";
 }
 
-function ActivityItem({ revision, actividad, index, theme }: ActivityItemProps) {
+function ActivityItem({
+  revision,
+  actividad,
+  index,
+  theme,
+}: ActivityItemProps) {
   // Color del badge según el índice
   const badgeColor = useMemo(() => {
     const colors = [
@@ -333,7 +351,7 @@ function TasksPanelFooter({
               </>
             )}
           </Button>
-          
+
           <Button
             onClick={onStartVoiceMode}
             size="sm"

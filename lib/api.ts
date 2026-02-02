@@ -513,3 +513,4 @@ export async function consultarIAProyecto(mensaje: string) {
     return { success: false, actividades: [] };
   }
 }
+
