@@ -1,4 +1,3 @@
-
 const API_KEYS = [
   process.env.NEXT_PUBLIC_GROQ_API_KEY_1,
   process.env.NEXT_PUBLIC_GROQ_API_KEY_2,
@@ -41,7 +40,6 @@ export async function transcribirAudioCliente(
 
       // Si es error 429 (rate limit) y hay más keys, continuar al siguiente
       if (response.status === 429 && i < API_KEYS.length - 1) {
-        console.warn(`Groq cuenta ${numCuenta} saturada (429), rotando...`);
         continue;
       }
 
@@ -52,20 +50,16 @@ export async function transcribirAudioCliente(
       }
 
       const data = await response.json();
-      console.log(`✓ Transcripción exitosa con cuenta ${numCuenta}`);
+
       return data.text || "";
     } catch (error) {
       // Si es un error de red o fetch y hay más keys, intentar con la siguiente
       if (i < API_KEYS.length - 1) {
-        console.warn(
-          `Error con cuenta ${numCuenta}, intentando siguiente...`,
-          error,
-        );
         continue;
       }
 
       // Si ya probamos todas las keys, lanzar el error
-      console.error("Error transcribiendo audio con todas las cuentas:", error);
+
       throw error;
     }
   }

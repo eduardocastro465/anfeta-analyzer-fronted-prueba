@@ -52,9 +52,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-        } catch (e) {
-          console.log("Recognition ya detenido");
-        }
+        } catch (e) {}
       }
     }
   }, [isOpen]);
@@ -68,7 +66,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
 
     if (transcript.trim().length > 0) {
       setCountdown(3);
-      
+
       countdownInterval = setInterval(() => {
         setCountdown((prev) => {
           if (prev === null || prev <= 1) {
@@ -80,7 +78,6 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
       }, 1000);
 
       silenceTimer = setTimeout(() => {
-        console.log("⏱️ 3 segundos de silencio - Auto-enviando");
         setCountdown(null);
         handleStopRecording();
       }, 3000);
@@ -97,13 +94,18 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     setTranscript("");
     setEditStep("recording");
 
-    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+    if (
+      !("webkitSpeechRecognition" in window) &&
+      !("SpeechRecognition" in window)
+    ) {
       setErrorMessage("Tu navegador no soporta reconocimiento de voz");
       setEditStep("error");
       return;
     }
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
 
     recognition.continuous = true;
@@ -127,14 +129,11 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     };
 
     recognition.onerror = (event: any) => {
-      console.error("Error de reconocimiento:", event.error);
       setErrorMessage(`Error: ${event.error}`);
       setEditStep("error");
     };
 
-    recognition.onend = () => {
-      console.log("Reconocimiento finalizado");
-    };
+    recognition.onend = () => {};
 
     recognitionRef.current = recognition;
     recognition.start();
@@ -157,11 +156,11 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
     try {
       // Validar y guardar
       const success = await onSave(task!.id, transcript.trim());
-      
+
       if (success) {
         setValidationMessage("Explicación actualizada correctamente");
         setEditStep("success");
-        
+
         // Cerrar después de 1.5 segundos
         setTimeout(() => {
           onClose();
@@ -171,7 +170,6 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
         setEditStep("error");
       }
     } catch (error) {
-      console.error("Error validando:", error);
       setErrorMessage("Error al validar la explicación");
       setEditStep("error");
     }
@@ -195,7 +193,11 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
         theme === "dark" ? "bg-black/80" : "bg-white/95"
       }`}
       onClick={(e) => {
-        if (e.target === e.currentTarget && editStep !== "recording" && editStep !== "validating") {
+        if (
+          e.target === e.currentTarget &&
+          editStep !== "recording" &&
+          editStep !== "validating"
+        ) {
           onClose();
         }
       }}
@@ -240,14 +242,16 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium text-sm">{task.nombre}</span>
               <Badge
-                variant={task.prioridad === "ALTA" ? "destructive" : "secondary"}
+                variant={
+                  task.prioridad === "ALTA" ? "destructive" : "secondary"
+                }
               >
                 {task.prioridad}
               </Badge>
             </div>
             <div className="flex gap-3 text-xs text-gray-500">
-              <span>⏱️ {task.duracionMin} min</span>
-              <span>📅 {task.diasPendiente || 0} días</span>
+              <span>{task.duracionMin} min</span>
+              <span>{task.diasPendiente || 0} días</span>
             </div>
           </div>
 
@@ -288,7 +292,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                   <div className="w-16 h-16 rounded-full mx-auto bg-red-500/20 animate-pulse flex items-center justify-center">
                     <Mic className="w-8 h-8 text-red-500" />
                   </div>
-                  
+
                   {countdown !== null && (
                     <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
                       <div className="bg-[#6841ea] text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
@@ -297,7 +301,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
                     </div>
                   )}
                 </div>
-                
+
                 <h4 className="text-lg font-bold mt-3">Grabando...</h4>
               </div>
 
@@ -371,7 +375,9 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({
               >
                 <Check className="w-8 h-8 text-green-500" />
               </div>
-              <h4 className="text-lg font-bold text-green-500">¡Actualizado!</h4>
+              <h4 className="text-lg font-bold text-green-500">
+                ¡Actualizado!
+              </h4>
               <p className="text-sm text-gray-500">{validationMessage}</p>
             </div>
           )}

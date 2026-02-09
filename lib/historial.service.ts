@@ -1,5 +1,5 @@
 import axiosClient from "./axios";
-import { ConversacionResponse, VerificarAnalisisResponse } from "./interface/historial.interface";
+import { ConversacionResponse, EliminarConversacionResponse, VerificarAnalisisResponse } from "./interface/historial.interface";
 
 export const obtenerMensajesConversacion = async (
   sessionId: string
@@ -11,3 +11,6 @@ export const verificarAnalisisDelDia = async (): Promise<VerificarAnalisisRespon
 
 export const obtenerSessionActual = async (): Promise<VerificarAnalisisResponse> =>
   axiosClient.get(`/assistant/session/actual`);
+
+export const eliminarConversacion = async (sessionId: string): Promise<EliminarConversacionResponse> =>
+  axiosClient.delete(`/assistant/historial/sesion/${sessionId}`);

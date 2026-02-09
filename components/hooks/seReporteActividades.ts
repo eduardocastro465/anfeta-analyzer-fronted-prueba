@@ -1,22 +1,25 @@
 // hooks/useReporteActividades.ts
-import { useState } from 'react';
-import type { ActividadDiaria, PendienteEstadoLocal } from '@/lib/types';
+import { useState } from "react";
+import type { ActividadDiaria, PendienteEstadoLocal } from "@/lib/types";
 import {
   obtenerActividadesConTiempoHoy,
   actualizarEstadoPendientes,
   validarReportePendiente,
-} from '@/lib/api';
+} from "@/lib/api";
 
 export function useReporteActividades() {
   const [mostrarModalReporte, setMostrarModalReporte] = useState(false);
-  const [actividadesDiarias, setActividadesDiarias] = useState<ActividadDiaria[]>([]);
-  const [pendientesReporte, setPendientesReporte] = useState<PendienteEstadoLocal[]>([]);
+  const [actividadesDiarias, setActividadesDiarias] = useState<
+    ActividadDiaria[]
+  >([]);
+  const [pendientesReporte, setPendientesReporte] = useState<
+    PendienteEstadoLocal[]
+  >([]);
   const [guardandoReporte, setGuardandoReporte] = useState(false);
   const [yaSeVerificoHoy, setYaSeVerificoHoy] = useState(false);
 
   const cargarActividadesParaReporte = async () => {
     try {
-      console.log("🕐 Cargando actividades del día...");
       const response = await obtenerActividadesConTiempoHoy();
 
       if (response.success && response.data && response.data.length > 0) {
@@ -37,12 +40,9 @@ export function useReporteActividades() {
         setPendientesReporte(todosLosPendientes);
         setYaSeVerificoHoy(true);
       } else {
-        console.log("No hay actividades para reportar hoy");
         setYaSeVerificoHoy(true);
       }
-    } catch (error) {
-      console.error("Error al cargar actividades para reporte:", error);
-    }
+    } catch (error) {}
   };
 
   const toggleCompletadoReporte = (pendienteId: string) => {
@@ -84,10 +84,9 @@ export function useReporteActividades() {
           actualizados: response.actualizados,
         };
       }
-      
+
       return { success: false };
     } catch (error) {
-      console.error("Error al guardar reporte:", error);
       return { success: false };
     } finally {
       setGuardandoReporte(false);
@@ -97,7 +96,7 @@ export function useReporteActividades() {
   const validarPendienteReporte = async (
     pendienteId: string,
     actividadId: string,
-    explicacion: string
+    explicacion: string,
   ) => {
     try {
       const res = await validarReportePendiente(
@@ -122,7 +121,6 @@ export function useReporteActividades() {
 
       return data;
     } catch (error) {
-      console.error("Error al validar pendiente:", error);
       throw error;
     }
   };

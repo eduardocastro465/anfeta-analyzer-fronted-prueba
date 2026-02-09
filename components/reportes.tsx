@@ -1,10 +1,7 @@
 "use client";
 
-import  { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,7 +160,6 @@ export default function PanelAdminCompleto() {
         throw new Error("Formato de respuesta inválido");
       }
     } catch (err) {
-      console.error("Error cargando datos:", err);
       setError(err instanceof Error ? err.message : "Error desconocido");
 
       // Cargar datos de ejemplo si la API falla

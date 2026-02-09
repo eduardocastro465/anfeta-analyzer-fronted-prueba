@@ -1,21 +1,11 @@
 import React from "react";
 import Image from "next/image";
-import {
-  ChevronLeft,
-  ChevronRight,
-  PictureInPicture,
-  Minimize2,
-  Moon,
-  Sun,
-  LogOut,
-} from "lucide-react";
+import { PictureInPicture, Minimize2, Moon, Sun, LogOut } from "lucide-react";
 import { SpeedControlHeader } from "./voice-controls";
 import { HeaderProps } from "@/lib/types";
 
 export const ChatHeader: React.FC<HeaderProps> = ({
   isInPiPWindow,
-  sidebarOpen,
-  setSidebarOpen,
   theme,
   toggleTheme,
   displayName,
@@ -87,7 +77,7 @@ export const ChatHeader: React.FC<HeaderProps> = ({
           }`}
         />
         <div className="relative max-w-4xl mx-auto">
-          <div className="flex items-center justify-between p-4">
+          <div className="flex items-center justify-between px-4 ">
             <div className="flex items-center gap-3">
               <div className="rounded-full flex items-center justify-center animate-tilt">
                 <Image
@@ -118,6 +108,7 @@ export const ChatHeader: React.FC<HeaderProps> = ({
 
               <button
                 onClick={isPiPMode ? closePiPWindow : openPiPWindow}
+                disabled={isInPiPWindow}
                 className={`w-9 h-9 rounded-full flex items-center justify-center ${
                   isPiPMode
                     ? "bg-red-600"

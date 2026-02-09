@@ -17,7 +17,7 @@ export const useAudioRecorder = () => {
         },
       });
 
-      // ✅ IMPORTANTE: Guardar y retornar el stream
+      // IMPORTANTE: Guardar y retornar el stream
       setCurrentStream(stream);
 
       // Crear MediaRecorder
@@ -34,12 +34,10 @@ export const useAudioRecorder = () => {
 
       // Iniciar grabación
       mediaRecorder.start();
-      console.log("✅ [RECORDER] Grabación iniciada");
 
       // ✅ Retornar el stream para que puedas usarlo
       return stream;
     } catch (error) {
-      console.error("❌ [RECORDER] Error al iniciar:", error);
       throw error;
     }
   };
@@ -49,18 +47,12 @@ export const useAudioRecorder = () => {
       const mediaRecorder = mediaRecorderRef.current;
 
       if (!mediaRecorder) {
-        console.warn("⚠️ [RECORDER] No hay grabación activa");
         return resolve(new Blob());
       }
 
       mediaRecorder.onstop = () => {
         // Crear blob de audio
         const audioBlob = new Blob(chunksRef.current, { type: "audio/webm" });
-        console.log(
-          "✅ [RECORDER] Grabación detenida, blob:",
-          audioBlob.size,
-          "bytes",
-        );
 
         // Limpiar
         chunksRef.current = [];

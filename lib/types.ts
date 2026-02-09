@@ -70,7 +70,7 @@ export interface Colaborador {
   lastName: string;
   email: string;
   phone?: string;
-  collaboratorId?: string;
+  collaboratorId: string;
   avatar?: string;
 }
 
@@ -182,7 +182,7 @@ export interface HistorialSessionResponse {
 export interface PendienteDiario {
   pendienteId: string;
   nombre: string;
-  descripcion: string;
+  descripcion?: string;
   duracionMin: number;
   terminada: boolean;
   motivoNoCompletado: string | null;
@@ -199,6 +199,7 @@ export interface ActividadDiaria {
 }
 export interface PendienteEstadoLocal extends PendienteDiario {
   actividadId: string;
+
   completadoLocal: boolean;
   motivoLocal: string;
 }
@@ -226,6 +227,7 @@ export interface TareaConTiempo {
   nombre: string;
   terminada: boolean;
   confirmada: boolean;
+  descripcion?: string;
   duracionMin: number;
   fechaCreacion: string;
   fechaFinTerminada: string | null;
@@ -252,7 +254,6 @@ export interface Message {
   analisis?: any;
   isWide?: boolean;
 }
-
 
 export interface AssistantAnalysis {
   success: boolean;
@@ -287,6 +288,7 @@ export interface AssistantAnalysis {
         nombre: string;
         terminada: boolean;
         confirmada: boolean;
+        descripcion?: string;
         duracionMin: number;
         fechaCreacion: string;
         fechaFinTerminada: string | null;
@@ -324,7 +326,7 @@ export interface ChatBotProps {
   onNuevaConversacion?: (conv: ConversacionSidebar) => void;
   onActualizarNombre?: (sessionId: string, nombre: string) => void;
   onActualizarTyping?: (isTyping: boolean) => void;
-  
+   memoriasUsuario?: string[];
 }
 
 export type ChatStep =
@@ -397,6 +399,16 @@ export interface VoiceGuidanceFlowProps {
   setTaskExplanations?: (value: any[] | ((prev: any[]) => any[])) => void;
 }
 
+export interface ExtendedVoiceGuidanceFlowProps extends VoiceGuidanceFlowProps {
+  autoSendVoice: {
+    isRecording: boolean;
+    isTranscribing: boolean;
+    audioLevel: number;
+    startVoiceRecording: () => Promise<void>;
+    cancelVoiceRecording: () => Promise<void>;
+  };
+}
+
 export interface ConsultarIAPayload {
   pregunta: string;
   pendienteNombre?: string;
@@ -415,7 +427,6 @@ export interface IAResponse {
   error?: string;
 }
 
-
 export interface ChatContainerProps {
   colaborador: Colaborador;
   actividades: any[];
@@ -430,17 +441,3 @@ export type ConversacionSidebar = {
   createdAt: string;
   updatedAt?: string;
 };
-
-
-export type TranscripcionRequest = {
-  audioBase64: string;
-  mimetype: string;
-  filename?: string;
-};
-
-export type TranscripcionResponse = {
-  texto?: string;
-  success: boolean;
-  error?: string;
-};
-

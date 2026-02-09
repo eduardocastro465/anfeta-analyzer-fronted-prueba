@@ -25,7 +25,6 @@ export default function Home() {
         setIsLoggedIn(true);
       }
     } catch (error) {
-      console.error("Sesión corrupta, limpiando...", error);
       clearSession();
     } finally {
       setIsLoading(false);
@@ -52,7 +51,6 @@ export default function Home() {
     try {
       await logout(); // backend (cookies / jwt)
     } catch (e) {
-      console.warn("Logout backend falló", e);
     } finally {
       clearSession();
       setIsLoggedIn(false);

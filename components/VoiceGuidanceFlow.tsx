@@ -14,7 +14,19 @@ import {
 } from "@/components/VoiceGuidanceFlow-SubComponents";
 import type { VoiceGuidanceFlowProps } from "@/lib/types";
 
-export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
+// ==================== NUEVAS PROPS NECESARIAS ====================
+interface ExtendedVoiceGuidanceFlowProps extends VoiceGuidanceFlowProps {
+  // Props del hook useAutoSendVoice
+  autoSendVoice: {
+    isRecording: boolean;
+    isTranscribing: boolean;
+    audioLevel: number;
+    startVoiceRecording: () => Promise<void>;
+    cancelVoiceRecording: () => Promise<void>;
+  };
+}
+
+export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   voiceMode,
   voiceStep,
   theme,
@@ -45,6 +57,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
   setCurrentListeningFor,
   setCurrentActivityIndex,
   setCurrentTaskIndex,
+  autoSendVoice, // 🆕 NUEVO PROP
 }) => {
   if (!voiceMode) return null;
 
@@ -97,12 +110,26 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
     return null;
   };
 
-  // FUNCIÓN PARA EDITAR UNA TAREA DESDE EL RESUMEN
+  // ==================== MANEJO DE CANCELACIÓN ====================
+  const handleCancelVoiceMode = React.useCallback(async () => {
+    // 🆕 Cancelar grabación automática si está activa
+    if (autoSendVoice.isRecording) {
+      await autoSendVoice.cancelVoiceRecording();
+    }
+    cancelVoiceMode();
+  }, [autoSendVoice, cancelVoiceMode]);
+
+  // ==================== FUNCIÓN PARA EDITAR UNA TAREA ====================
   const handleEditTask = React.useCallback(
-    (activityIndex: number, taskIndex: number) => {
+    async (activityIndex: number, taskIndex: number) => {
       // Detener cualquier reproducción de audio
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
+      }
+
+      // 🆕 Cancelar grabación automática
+      if (autoSendVoice.isRecording) {
+        await autoSendVoice.cancelVoiceRecording();
       }
 
       // Detener reconocimiento de voz si está activo
@@ -133,6 +160,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
       });
     },
     [
+      autoSendVoice,
       recognitionRef,
       setIsRecording,
       setIsListening,
@@ -142,6 +170,42 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
       setVoiceStep,
     ],
   );
+
+  // ==================== INICIO DE GRABACIÓN CON AUTO-SEND ====================
+  const handleStartTaskExplanation = React.useCallback(async () => {
+    const allowedStates = [
+      "waiting-for-explanation",
+      "confirmation",
+      "task-presentation",
+    ];
+
+    if (!allowedStates.includes(voiceStep)) {
+      return;
+    }
+
+    // Detener voz del asistente
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    const currentTask = getCurrentTask();
+    if (currentTask) {
+      setCurrentListeningFor(`Explicación para: ${currentTask.nombre}`);
+    }
+
+    setVoiceStep("listening-explanation");
+
+    // 🆕 USAR AUTO-SEND EN LUGAR DE VOICE RECOGNITION
+    setTimeout(async () => {
+      await autoSendVoice.startVoiceRecording();
+    }, 100);
+  }, [
+    voiceStep,
+    setCurrentListeningFor,
+    setVoiceStep,
+    autoSendVoice,
+    getCurrentTask,
+  ]);
 
   const currentActivity = getCurrentActivity();
   const currentTask = getCurrentTask();
@@ -155,13 +219,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
   const isInTransition =
     voiceStep === "activity-presentation" && !currentActivity;
 
-  // Durante transiciones, mostrar un loading simple en lugar de error
-  if (!currentActivity && !isInFinalSteps && !isInTransition) {
-    console.error("ERROR: No hay actividad en el índice actual");
-    return null;
-  }
-
-  // Si estamos en transición, mostrar un loading
+  // Durante transiciones, mostrar un loading simple
   if (isInTransition) {
     return (
       <div
@@ -174,6 +232,10 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
     );
   }
 
+  if (!currentActivity && !isInFinalSteps && !isInTransition) {
+    return null;
+  }
+
   const safeActivityTasksCount = currentActivity?.tareas?.length || 1;
   const progressPercentage = isInFinalSteps
     ? 100
@@ -184,6 +246,8 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
 
   const getHeaderSubtitle = () => {
     if (isSpeaking) return "Asistente hablando...";
+    // 🆕 Mostrar estado de transcripción
+    if (autoSendVoice.isTranscribing) return "Transcribiendo audio...";
     if (voiceStep === "confirm-start") return "Confirmar inicio";
     if (voiceStep === "activity-presentation")
       return `Presentando actividad ${currentActivityIndex + 1} de ${totalActivities}`;
@@ -241,6 +305,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* 🆕 INDICADOR DE VOZ MEJORADO */}
               {isSpeaking && (
                 <div className="flex gap-1">
                   {[0, 100, 200, 300].map((delay, i) => (
@@ -260,12 +325,32 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
                   ))}
                 </div>
               )}
+
+              {/* 🆕 INDICADOR DE NIVEL DE AUDIO */}
+              {autoSendVoice.isRecording && (
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className={`w-1 rounded-full transition-all duration-150 ${
+                          autoSendVoice.audioLevel > i * 25
+                            ? "bg-red-500 h-6"
+                            : "bg-gray-400 h-2"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-red-500 font-medium">REC</span>
+                </div>
+              )}
+
               <SpeedControlModal
                 rate={rate}
                 changeRate={changeRate}
                 theme={theme}
               />
-              <Button variant="ghost" size="sm" onClick={cancelVoiceMode}>
+              <Button variant="ghost" size="sm" onClick={handleCancelVoiceMode}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -299,7 +384,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
               totalTasks={totalTasks}
               theme={theme}
               confirmStartVoiceMode={confirmStartVoiceMode}
-              cancelVoiceMode={cancelVoiceMode}
+              cancelVoiceMode={handleCancelVoiceMode}
             />
           )}
 
@@ -326,7 +411,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
                 theme={theme}
                 voiceStep={voiceStep}
                 isSpeaking={isSpeaking}
-                startTaskExplanation={startTaskExplanation}
+                startTaskExplanation={handleStartTaskExplanation} // 🆕 USAR LA NUEVA FUNCIÓN
                 skipTask={skipTask}
               />
             )}
@@ -337,7 +422,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
               retryCount={retryCount}
               voiceTranscript={voiceTranscript}
               theme={theme}
-              stopRecording={stopRecording}
+              stopRecording={autoSendVoice.cancelVoiceRecording} // 🆕 USAR AUTO-SEND
               processVoiceExplanation={processVoiceExplanation}
               recognitionRef={recognitionRef}
               setIsRecording={setIsRecording}
@@ -347,7 +432,6 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
             />
           )}
 
-          {/* Estado de procesamiento/validación */}
           {voiceStep === "processing-explanation" && (
             <div className="text-center space-y-4">
               <div className="relative">
@@ -387,7 +471,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
                       : "bg-blue-50 border border-blue-200"
                   }`}
                 >
-                  <p className="text-sm font-medium"> {currentTask.nombre}</p>
+                  <p className="text-sm font-medium">{currentTask.nombre}</p>
                 </div>
               )}
 
@@ -421,7 +505,7 @@ export const VoiceGuidanceFlow: React.FC<VoiceGuidanceFlowProps> = ({
               theme={theme}
               finishVoiceMode={finishVoiceMode}
               isSpeaking={isSpeaking}
-              cancelVoiceMode={cancelVoiceMode}
+              cancelVoiceMode={handleCancelVoiceMode}
               onEditTask={handleEditTask}
             />
           )}

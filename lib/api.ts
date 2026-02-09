@@ -1,4 +1,3 @@
-
 import type {
   Colaborador,
   Actividad,
@@ -18,7 +17,6 @@ export async function fetchColaboradores(): Promise<Colaborador[]> {
     const data: UsersApiResponse = await response.json();
     return data.items || [];
   } catch (error) {
-    console.error("Error fetching colaboradores:", error);
     throw error;
   }
 }
@@ -59,7 +57,6 @@ export async function SignIn(email: string): Promise<any> {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error initiating session:", error);
     throw error;
   }
 }
@@ -73,7 +70,6 @@ export async function logout(): Promise<boolean> {
 
     return response.ok;
   } catch (error) {
-    console.error("Error al cerrar sesión:", error);
     return false;
   }
 }
@@ -85,14 +81,16 @@ export async function validateSession(): Promise<any | null> {
       credentials: "include", // 🍪 envía la cookie
     });
 
+    if (response.status === 401) {
+      return null;
+    }
+
     if (!response.ok) {
       throw new Error(`401 Usuario no autotizado`);
     }
 
     return response.json();
-  } catch (error) {
-    console.log("Usuario no autorizado");
-  }
+  } catch (error) {}
 }
 
 export async function fetchActividadesByUser(
@@ -112,7 +110,6 @@ export async function fetchActividadesByUser(
     const data: ActividadesApiResponse = await response.json();
     return data.data || [];
   } catch (error) {
-    console.error("Error fetching actividades:", error);
     throw error;
   }
 }
@@ -131,7 +128,6 @@ export async function obtenerHistorialSession(sessionId: string) {
     const data = await response.json();
     return data || [];
   } catch (error) {
-    console.log(error);
     throw error;
   }
 }
@@ -166,7 +162,6 @@ export async function sendPendienteValidarYGuardar(data: {
 
     return await response.json();
   } catch (error) {
-    console.error("Error validando explicación:", error);
     return { valida: false, razon: "Error de conexión" };
   }
 }
@@ -202,7 +197,6 @@ export async function sendTaskValidation(data: {
 
     return await response.json();
   } catch (error) {
-    console.error("Error validando tarea:", error);
     return { valida: false, razon: "Error de conexión" };
   }
 }
@@ -224,7 +218,6 @@ export async function obtenerHistorialSidebar() {
 
     return await response.json();
   } catch (error) {
-    console.error("Error obteniendo titulos:", error);
     return { success: false, hayPendientes: false };
   }
 }
@@ -246,7 +239,6 @@ export async function obtenerActividadesConTiempoHoy() {
 
     return await response.json();
   } catch (error) {
-    console.error("Error obteniendo actividades con tiempo hoy:", error);
     return { success: false, actividades: [] };
   }
 }
@@ -276,7 +268,6 @@ export async function actualizarEstadoPendientes(
 
     return await response.json();
   } catch (error) {
-    console.error("Error actualizando estado de pendientes:", error);
     return { success: false, message: "Error de conexión" };
   }
 }
@@ -306,7 +297,6 @@ export async function validarReportePendiente(
     // 👇 NO tires throw, deja que el backend responda
     return data;
   } catch (error) {
-    console.error("Error validando explicación:", error);
     return {
       valida: false,
       razon: "Errr",
@@ -336,7 +326,6 @@ export async function obtenerPendientesHoy(colaborador: {
 
     return await response.json();
   } catch (error) {
-    console.error("Error obteniendo pendientes hoy:", error);
     return { success: false, pendientes: [] };
   }
 }
@@ -357,7 +346,6 @@ export async function obtenerActividadesConRevisiones(requestBody: any) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error obteniendo actividades con revisiones:", error);
     return { success: false, actividades: [] };
   }
 }
@@ -392,7 +380,6 @@ export async function guardarExplicaciones(payload: {
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error("Error guardando explicaciones:", error);
     return { success: false, message: "Error de conexión" };
   }
 }
@@ -412,14 +399,10 @@ export async function verificarDescripcion(sessionId: string) {
 
     if (response.ok) {
       const data = await response.json();
-      console.log(
-        "📋 Tareas con descripción verificadas:",
-        data.tareasConDescripcion,
-      );
+
       return data;
     }
   } catch (error) {
-    console.error("Error al verificar descripciones:", error);
     return { valida: false, tareasConDescripcion: [] };
   }
 }
@@ -440,7 +423,6 @@ export async function guardarReporteTarde(payload: any) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error obteniendo actividades con revisiones:", error);
     return { success: false, actividades: [] };
   }
 }
@@ -467,7 +449,6 @@ export async function obtenerConversacionCompleta(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error al obtener conversación completa:", error);
     return { success: false, data: null };
   }
 }
@@ -485,12 +466,14 @@ export async function chatGeneralIA(mensaje: string, sessionId: string | null) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error consultando IA:", error);
     return { success: false, actividades: [] };
   }
 }
 
-export async function consultarIAProyecto(mensaje: string, sessionId: string | null) {
+export async function consultarIAProyecto(
+  mensaje: string,
+  sessionId: string | null,
+) {
   try {
     const response = await fetch(
       `${BASE_URL_BACK}/assistant/consultar-ia-proyecto`,
@@ -506,7 +489,6 @@ export async function consultarIAProyecto(mensaje: string, sessionId: string | n
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Error consultando IA:", error);
     return { success: false, actividades: [] };
   }
 }

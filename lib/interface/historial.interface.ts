@@ -79,8 +79,14 @@ export interface ConversacionResponse {
 export interface VerificarAnalisisResponse {
   success: boolean;
   tieneAnalisis: boolean;
+  userId: string;
   sessionId: string;
   analisis?: AssistantAnalysis;
   mensajes?: MensajeHistorial[];
   existe: boolean;
+}
+
+export interface EliminarConversacionResponse {
+  success: boolean;
+  message: string;
 }

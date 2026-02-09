@@ -1,63 +1,76 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: "accepted" | "dismissed";
+    platform: string;
+  }>;
+}
 
 export function ServiceWorkerRegister() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    // Registrar Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then((registration) => {
-        console.log('Service Worker registered:', registration);
-      }).catch((error) => {
-        console.log('Service Worker registration failed:', error);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.getRegistration().then((registration) => {
+        if (!registration) {
+          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        }
       });
     }
 
-    // Capturar evento de instalación
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      return;
+    }
+
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowPrompt(true);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Detectar si ya está instalada
-    window.addEventListener('appinstalled', () => {
-      console.log('App instalada exitosamente');
+    const handleAppInstalled = () => {
       setDeferredPrompt(null);
       setShowPrompt(false);
       toast({
-        title: 'Instalada',
-        description: 'La aplicación se ha instalado correctamente',
+        title: "Instalada",
+        description: "La aplicación se ha instalado correctamente",
       });
-    });
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, [toast]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
-    deferredPrompt.prompt();
+    await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
-      console.log('App instalada por usuario');
+
+    if (outcome === "accepted") {
       toast({
-        title: 'Instalación iniciada',
-        description: 'La aplicación se está instalando...',
+        title: "Instalación iniciada",
+        description: "La aplicación se está instalando...",
       });
     }
-    
+
     setDeferredPrompt(null);
     setShowPrompt(false);
   };
@@ -75,18 +88,10 @@ export function ServiceWorkerRegister() {
         Instala nuestra app para acceder sin conexión
       </p>
       <div className="flex gap-2">
-        <Button
-          onClick={handleInstallClick}
-          className="flex-1"
-          size="sm"
-        >
+        <Button onClick={handleInstallClick} className="flex-1" size="sm">
           Instalar
         </Button>
-        <Button
-          onClick={handleDismiss}
-          variant="outline"
-          size="sm"
-        >
+        <Button onClick={handleDismiss} variant="outline" size="sm">
           Después
         </Button>
       </div>

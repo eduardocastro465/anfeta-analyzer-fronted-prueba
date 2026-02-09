@@ -17,9 +17,6 @@ export function useVoiceRecognition() {
     if (
       !("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
     ) {
-      console.warn(
-        "⚠️ Este navegador no soporta el reconocimiento de voz (Web Speech API)",
-      );
       const isOpera =
         (window as any).opr ||
         (window as any).opera ||
@@ -38,8 +35,6 @@ export function useVoiceRecognition() {
       return;
     }
 
-    console.log("🎤 Iniciando grabación...");
-
     setIsRecording(true);
     setIsListening(true);
     setVoiceTranscript("");
@@ -57,7 +52,6 @@ export function useVoiceRecognition() {
     recognitionRef.current = recognition;
 
     recognition.onstart = () => {
-      console.log("✅ Reconocimiento de voz INICIADO");
       setIsListening(true);
     };
 
@@ -77,12 +71,9 @@ export function useVoiceRecognition() {
       const fullTranscript = (finalTranscript + interimTranscript).trim();
       voiceTranscriptRef.current = fullTranscript;
       setVoiceTranscript(fullTranscript);
-
-      console.log("📝 Transcripción actualizada:", fullTranscript);
     };
 
     recognition.onerror = (event: any) => {
-      console.error("❌ Error en reconocimiento:", event.error);
       setIsListening(false);
       setIsRecording(false);
 
@@ -110,16 +101,11 @@ export function useVoiceRecognition() {
     };
 
     recognition.onend = () => {
-      console.log("🛑 Reconocimiento finalizado");
       setIsListening(false);
       setIsRecording(false);
 
       // ✅ Solo llamar onResult si hay transcripción Y se proporcionó el callback
       if (onResult && voiceTranscriptRef.current.trim().length > 0) {
-        console.log(
-          "📤 Enviando transcripción final:",
-          voiceTranscriptRef.current,
-        );
         onResult(voiceTranscriptRef.current);
       }
     };
@@ -127,20 +113,15 @@ export function useVoiceRecognition() {
     try {
       recognition.start();
     } catch (error) {
-      console.error("❌ Error al iniciar:", error);
       onError?.("No se pudo iniciar el reconocimiento de voz");
     }
   };
 
   const stopRecording = () => {
-    console.log("⏹️ Deteniendo grabación...");
-
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (error) {
-        console.error("Error al detener:", error);
-      }
+      } catch (error) {}
     }
 
     setIsRecording(false);

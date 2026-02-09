@@ -44,7 +44,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setIsCheckingSession(true);
     try {
       const user = await validateSession();
-      console.log("Sesión validada:", user);
 
       if (user && user.email) {
         // Usuario tiene sesión activa, cargar colaboradores para encontrar sus datos
@@ -73,7 +72,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       // No hay sesión válida, cargar colaboradores normalmente
       await loadColaboradores();
     } catch (err) {
-      console.error("Error al verificar sesión:", err);
       await loadColaboradores();
     } finally {
       setIsCheckingSession(false);
@@ -94,7 +92,6 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       setColaboradores(data);
     } catch (err) {
       setError("Error al cargar colaboradores. Verifica tu conexión.");
-      console.error(err);
     } finally {
       setIsLoadingColaboradores(false);
     }

@@ -5,9 +5,9 @@ import { restaurarMensajesConComponentes } from "@/components/chat/restaurarMens
 
 // ✅ INTERFAZ CORREGIDA - Todos los tipos opcionales donde sea necesario
 interface UseMessageRestorationProps {
-  conversacionActiva?: string | null;              // ✅ Opcional
-  mensajesRestaurados?: MensajeHistorial[];        // ✅ Opcional
-  analisisRestaurado?: AssistantAnalysis | null;   // ✅ Opcional
+  conversacionActiva?: string | null; // ✅ Opcional
+  mensajesRestaurados?: MensajeHistorial[]; // ✅ Opcional
+  analisisRestaurado?: AssistantAnalysis | null; // ✅ Opcional
   theme: "light" | "dark";
   displayName: string;
   email: string;
@@ -18,13 +18,13 @@ interface UseMessageRestorationProps {
   setIsTyping: (isTyping: boolean) => void;
   setAssistantAnalysis: (analysis: AssistantAnalysis | null) => void;
   assistantAnalysisRef: React.MutableRefObject<AssistantAnalysis | null>;
-  scrollRef: React.RefObject<HTMLDivElement | null>;  // ✅ Acepta null
+  scrollRef: React.RefObject<HTMLDivElement | null>; // ✅ Acepta null
 }
 
 /**
  * Hook personalizado para manejar la restauración de conversaciones
  * desde el historial, manteniendo los componentes React originales
- * 
+ *
  * @example
  * ```tsx
  * useMessageRestoration({
@@ -66,7 +66,7 @@ export function useMessageRestoration({
 
   useEffect(() => {
     // ========== VALIDACIONES ==========
-    
+
     // 1. No hay conversación activa
     if (!conversacionActiva) {
       return;
@@ -83,36 +83,29 @@ export function useMessageRestoration({
     }
 
     // ========== INICIO DE RESTAURACIÓN ==========
-    
-    console.log("🔄 Iniciando restauración de conversación");
-    console.log("📝 Mensajes a restaurar:", mensajesRestaurados.length);
-    console.log("📊 Análisis disponible:", !!analisisRestaurado);
 
     // Marcar como procesada para evitar re-procesos
     restorationProcessedRef.current = conversacionActiva;
 
     // ========== PASO 1: CONVERTIR MENSAJES ==========
-    
+
     const mensajes = restaurarMensajesConComponentes(
       mensajesRestaurados,
-      analisisRestaurado ?? null,  // ✅ Convertir undefined a null
+      analisisRestaurado ?? null, // ✅ Convertir undefined a null
       theme,
       displayName,
       email,
       onOpenReport,
-      onStartVoiceMode
+      onStartVoiceMode,
     );
 
-    console.log("✅ Mensajes restaurados con componentes:", mensajes.length);
-
     // ========== PASO 2: ACTUALIZAR ESTADO ==========
-    
+
     // Actualizar mensajes
     setMessages(mensajes);
 
     // Restaurar análisis si existe
     if (analisisRestaurado) {
-      console.log("📊 Restaurando análisis del asistente");
       assistantAnalysisRef.current = analisisRestaurado;
       setAssistantAnalysis(analisisRestaurado);
     }
@@ -122,15 +115,13 @@ export function useMessageRestoration({
     setIsTyping(false);
 
     // ========== PASO 3: SCROLL AL FINAL ==========
-    
+
     // Delay para asegurar que el DOM se haya renderizado
     const scrollTimer = setTimeout(() => {
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
     }, 150);
-
-    console.log("✅ Restauración completada");
 
     // Cleanup
     return () => {

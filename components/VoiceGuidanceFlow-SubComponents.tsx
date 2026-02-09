@@ -249,7 +249,7 @@ export const ActivityPresentationStep: React.FC<{
             theme === "dark" ? "bg-blue-900/30" : "bg-blue-100"
           }`}
         >
-          📋 {currentActivity.tareas.length} tarea
+          {currentActivity.tareas.length} tarea
           {currentActivity.tareas.length !== 1 ? "s" : ""}
         </span>
         <span
@@ -257,7 +257,7 @@ export const ActivityPresentationStep: React.FC<{
             theme === "dark" ? "bg-purple-900/30" : "bg-purple-100"
           }`}
         >
-          ⏱️ {currentActivity.tareas.reduce((sum, t) => sum + t.duracionMin, 0)}{" "}
+          {currentActivity.tareas.reduce((sum, t) => sum + t.duracionMin, 0)}{" "}
           min
         </span>
       </div>
@@ -451,16 +451,16 @@ export const ListeningExplanationStep: React.FC<{
   setCurrentListeningFor,
 }) => {
   const [isValidating, setIsValidating] = React.useState(false);
-  
-   const [countdown, setCountdown] = React.useState<number | null>(null);
-  
+
+  const [countdown, setCountdown] = React.useState<number | null>(null);
+
   React.useEffect(() => {
     let silenceTimer: NodeJS.Timeout | null = null;
     let countdownInterval: NodeJS.Timeout | null = null;
 
     if (voiceTranscript && voiceTranscript.trim().length > 0) {
       setCountdown(3);
-      
+
       countdownInterval = setInterval(() => {
         setCountdown((prev) => {
           if (prev === null || prev <= 1) {
@@ -472,16 +472,15 @@ export const ListeningExplanationStep: React.FC<{
       }, 1000);
 
       silenceTimer = setTimeout(() => {
-        console.log("⏱️ 3 segundos de silencio - Auto-enviando explicación");
         setCountdown(null);
-        
+
         // ✅ DETENER RECONOCIMIENTO Y PROCESAR
         if (recognitionRef.current) {
           recognitionRef.current.stop();
         }
         setIsRecording(false);
         setIsListening(false);
-        
+
         // ✅ LLAMAR DIRECTAMENTE A processVoiceExplanation
         processVoiceExplanation(voiceTranscript);
       }, 3000);
@@ -491,24 +490,31 @@ export const ListeningExplanationStep: React.FC<{
       if (silenceTimer) clearTimeout(silenceTimer);
       if (countdownInterval) clearInterval(countdownInterval);
     };
-  }, [voiceTranscript, processVoiceExplanation, recognitionRef, setIsRecording, setIsListening]);
-
+  }, [
+    voiceTranscript,
+    processVoiceExplanation,
+    recognitionRef,
+    setIsRecording,
+    setIsListening,
+  ]);
 
   return (
     <div className="text-center space-y-4">
       <div className="relative">
-        <div className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center ${
-          isValidating 
-            ? "bg-blue-500/20 animate-spin" 
-            : "bg-red-500/20 animate-pulse"
-        }`}>
+        <div
+          className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center ${
+            isValidating
+              ? "bg-blue-500/20 animate-spin"
+              : "bg-red-500/20 animate-pulse"
+          }`}
+        >
           {isValidating ? (
             <Loader2 className="w-10 h-10 text-blue-500" />
           ) : (
             <Mic className="w-10 h-10 text-red-500" />
           )}
         </div>
-        
+
         {!isValidating && (
           <div className="absolute inset-0 flex items-center justify-center">
             {[1, 2, 3].map((i) => (
@@ -523,7 +529,7 @@ export const ListeningExplanationStep: React.FC<{
             ))}
           </div>
         )}
-        
+
         {/* ✅ Countdown flotante */}
         {countdown !== null && !isValidating && (
           <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
@@ -551,7 +557,7 @@ export const ListeningExplanationStep: React.FC<{
               theme === "dark" ? "text-blue-300" : "text-blue-700"
             }`}
           >
-            🎤 Escuchando para: {currentListeningFor}
+            Escuchando para: {currentListeningFor}
           </p>
         </div>
       )}
@@ -561,11 +567,11 @@ export const ListeningExplanationStep: React.FC<{
           theme === "dark" ? "text-gray-300" : "text-gray-600"
         }`}
       >
-        {isValidating 
+        {isValidating
           ? "Validando tu explicación con el asistente..."
           : retryCount > 0
-          ? "Corrige tu explicación, por favor."
-          : "Por favor, explica cómo resolverás esta tarea."}
+            ? "Corrige tu explicación, por favor."
+            : "Por favor, explica cómo resolverás esta tarea."}
       </p>
 
       {voiceTranscript && (
@@ -578,10 +584,9 @@ export const ListeningExplanationStep: React.FC<{
           <p className="text-xs text-gray-500">
             {isValidating
               ? "Validando con IA..."
-              : countdown !== null 
-              ? `Se enviará automáticamente en ${countdown} segundo${countdown !== 1 ? 's' : ''}...`
-              : "Continúa hablando o haz clic en un botón"
-            }
+              : countdown !== null
+                ? `Se enviará automáticamente en ${countdown} segundo${countdown !== 1 ? "s" : ""}...`
+                : "Continúa hablando o haz clic en un botón"}
           </p>
         </div>
       )}
@@ -808,14 +813,13 @@ export const SummaryStep: React.FC<{
     </div>
 
     <div className="flex gap-3">
-    <Button
-  onClick={finishVoiceMode}
-  className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4]"
-  disabled={isSpeaking}
->
-  Comenzar jornada
-</Button>
+      <Button
+        onClick={finishVoiceMode}
+        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4]"
+        disabled={isSpeaking}
+      >
+        Comenzar jornada
+      </Button>
     </div>
   </div>
 );
-

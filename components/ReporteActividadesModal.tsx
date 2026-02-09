@@ -1,4 +1,4 @@
-import  { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,9 @@ import {
 
 import type { ActividadDiaria } from "@/lib/types";
 import { guardarReporteTarde } from "@/lib/api";
+import { useAudioRecorder } from "./hooks/useAudioRecorder";
+import { transcribirAudioCliente } from "@/lib/transcription";
+import { useAutoSendVoice } from "@/components/Audio/UseAutoSendVoiceOptions";
 
 interface ReporteActividadesModalProps {
   isOpen: boolean;
@@ -31,15 +34,16 @@ interface ReporteActividadesModalProps {
   guardandoReporte: boolean;
   speakText: (text: string) => void;
 }
+
 type PasoModal =
-  | "inicial" // Mostrar resumen y botón iniciar
-  | "preguntando-que-hizo" // Bot pregunta qué hizo
-  | "escuchando-que-hizo" // Usuario responde qué hizo
-  | "guardando-que-hizo" // Guardando en BD
-  | "preguntando-motivo" // Bot pregunta por qué no completó
-  | "escuchando-motivo" // Usuario responde motivo
-  | "guardando-motivo" // Guardando motivo en BD
-  | "completado"; // Todas las tareas procesadas
+  | "inicial"
+  | "preguntando-que-hizo"
+  | "escuchando-que-hizo"
+  | "guardando-que-hizo"
+  | "preguntando-motivo"
+  | "escuchando-motivo"
+  | "guardando-motivo"
+  | "completado";
 
 export function ReporteActividadesModal({
   isOpen,
@@ -55,24 +59,59 @@ export function ReporteActividadesModal({
   // ==================== ESTADOS ====================
   const [paso, setPaso] = useState<PasoModal>("inicial");
   const [indiceActual, setIndiceActual] = useState(0);
-  const [isRecording, setIsRecording] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState("");
   const [errorValidacion, setErrorValidacion] = useState<string | null>(null);
-  const SILENCE_LIMIT = 2500;
 
   // ==================== REFS ====================
-  const recognitionRef = useRef<any>(null);
-  const voiceTranscriptRef = useRef("");
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastSpeechTimeRef = useRef<number | null>(null);
+  const isProcessingRef = useRef(false);
+
+  // ==================== HOOKS ====================
+  const audioRecorder = useAudioRecorder();
+
+  // ==================== REFS PARA CAPTURAR PASO ====================
+  const pasoActualRef = useRef<PasoModal>(paso);
+
+  // Sincronizar el paso actual con el ref
+  useEffect(() => {
+    pasoActualRef.current = paso;
+  }, [paso]);
+
+  // USAR EL HOOK useAutoSendVoice
+  const {
+    isRecording,
+    isTranscribing,
+    audioLevel,
+    startVoiceRecording,
+    cancelVoiceRecording,
+    cleanup,
+  } = useAutoSendVoice({
+    silenceThreshold: 3000, // 3 segundos de silencio
+    speechThreshold: 8,
+    transcriptionService: transcribirAudioCliente,
+    stopRecording: audioRecorder.stopRecording,
+    startRecording: audioRecorder.startRecording,
+    onTranscriptionComplete: async (transcript) => {
+      await procesarRespuesta(transcript, pasoActualRef.current);
+    },
+    onError: (error) => {
+      setErrorValidacion(error.message || "Error al procesar el audio");
+
+      const pasoActualCapturado = pasoActualRef.current;
+      setTimeout(() => {
+        setErrorValidacion(null);
+        setPaso(
+          pasoActualCapturado === "escuchando-que-hizo"
+            ? "preguntando-que-hizo"
+            : "preguntando-motivo",
+        );
+      }, 3000);
+    },
+  });
 
   // ==================== TAREAS FILTRADAS ====================
-  // Solo tareas con descripción (descripcion !== "" y descripcion !== null)
   const tareasConDescripcion = actividadesDiarias.flatMap((actividad) =>
     actividad.pendientes
       .filter((p) => p.descripcion && p.descripcion.trim().length > 0)
       .map((p) => ({
-        // ✅ Todas las propiedades necesarias
         pendienteId: p.pendienteId,
         nombre: p.nombre,
         descripcion: p.descripcion || "",
@@ -91,197 +130,100 @@ export function ReporteActividadesModal({
   const totalTareas = tareasConDescripcion.length;
   const progreso = totalTareas > 0 ? (indiceActual / totalTareas) * 100 : 0;
 
-  // ==================== CONTADOR DE PALABRAS ====================
-  const palabrasCount = voiceTranscript
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0).length;
-  const puedeEnviar = palabrasCount >= 5;
-
-  // ==================== FUNCIONES DE VOZ ====================
-  const iniciarGrabacion = () => {
-    if (typeof window === "undefined") return;
-    
-    // Si el asistente está hablando, esperamos un momento
-    if (window.speechSynthesis.speaking) {
-      setTimeout(iniciarGrabacion, 500);
+  // ==================== PROCESAR RESPUESTA ====================
+  const procesarRespuesta = async (
+    transcript: string,
+    pasoCapturado: PasoModal,
+  ) => {
+    if (isProcessingRef.current) {
       return;
     }
 
-    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
-      alert("Tu navegador no soporta reconocimiento de voz");
+    if (transcript.length < 3) {
+      setErrorValidacion("La respuesta es muy corta.");
+      setTimeout(() => {
+        setErrorValidacion(null);
+        setPaso(
+          pasoCapturado === "escuchando-que-hizo"
+            ? "preguntando-que-hizo"
+            : "preguntando-motivo",
+        );
+      }, 2000);
       return;
     }
 
-    setIsRecording(true);
-    setVoiceTranscript("");
-    voiceTranscriptRef.current = "";
-    setErrorValidacion(null);
+    isProcessingRef.current = true;
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = "es-MX";
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    try {
+      if (pasoCapturado === "escuchando-que-hizo") {
+        setPaso("guardando-que-hizo");
 
-    recognitionRef.current = recognition;
+        const payload = {
+          actividadId: tareaActual.actividadId,
+          pendienteId: tareaActual.pendienteId,
+          queHizo: transcript,
+        };
 
-    recognition.onresult = (event: any) => {
-      lastSpeechTimeRef.current = Date.now();
+        const data = await guardarReporteTarde(payload);
 
-      let finalTranscript = "";
-      let interimTranscript = "";
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript + " ";
-        } else {
-          interimTranscript += result[0].transcript;
-        }
-      }
-
-      const fullTranscript = (finalTranscript + interimTranscript).trim();
-      voiceTranscriptRef.current = fullTranscript;
-      setVoiceTranscript(fullTranscript);
-
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      
-      silenceTimerRef.current = setTimeout(() => {
-        if (voiceTranscriptRef.current.length > 5) {
-          enviarRespuesta();
-        }
-      }, 3500); // 3.5 segundos de silencio para enviar
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Error reconocimiento:", event.error);
-      if (event.error !== 'aborted') setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-  setIsRecording(false);
-
-  if (voiceTranscriptRef.current.trim().length >= 5) {
-    enviarRespuesta();
-  }
-};
-
-    recognition.start();
-  };
-
-  
-const detenerGrabacion = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        recognitionRef.current.abort(); // Fuerza la detención inmediata
-      } catch (e) {
-        console.log("Error al detener:", e);
-      }
-    }
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-    }
-    setIsRecording(false);
-  };
-
-  const handleCancelar = () => {
-    detenerGrabacion();
-    // Detener el habla del sistema inmediatamente
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    stopVoice(); // Función del padre
-    onOpenChange(false);
-    // Resetear paso para la próxima vez
-    setPaso("inicial");
-  };
- const enviarRespuesta = async () => {
-  detenerGrabacion();
-
-  const transcript = voiceTranscriptRef.current.trim();
-
-  // Validación de longitud mínima (3 caracteres)
-  if (transcript.length < 3) {
-    setErrorValidacion("La respuesta es muy corta.");
-    setTimeout(() => {
-      setErrorValidacion(null);
-      setPaso(paso === "escuchando-que-hizo" ? "preguntando-que-hizo" : "preguntando-motivo");
-    }, 2000);
-    return;
-  }
-
-  try {
-    if (paso === "escuchando-que-hizo") {
-      setPaso("guardando-que-hizo");
-
-      const payload = {
-        actividadId: tareaActual.actividadId,
-        pendienteId: tareaActual.pendienteId,
-        queHizo: transcript,
-      };
-
-      const data = await guardarReporteTarde(payload);
-
-      if (data.success) {
-        // El backend ahora siempre devuelve completada: true si hay dudas
-        if (data.completada) {
-          speakText("Perfecto. Siguiente tarea.");
-          setTimeout(() => avanzarSiguienteTarea(), 1500);
-        } else {
-          // Solo si la IA está muy segura de que NO se hizo
-          setPaso("preguntando-motivo");
-          setTimeout(() => {
-            speakText(`¿Por qué no completaste esta tarea?`);
+        if (data.success) {
+          if (data.completada) {
+            speakText("Perfecto. Siguiente tarea.");
+            setTimeout(() => avanzarSiguienteTarea(), 1500);
+          } else {
+            setPaso("preguntando-motivo");
             setTimeout(() => {
-              setPaso("escuchando-motivo");
-              iniciarGrabacion();
-            }, 1800);
-          }, 500);
+              speakText(`¿Por qué no completaste esta tarea?`);
+              setTimeout(() => {
+                setPaso("escuchando-motivo");
+                startVoiceRecording();
+              }, 1800);
+            }, 500);
+          }
+        } else {
+          throw new Error(data.error || "Error al guardar");
         }
-      } else {
-        throw new Error(data.error || "Error al guardar");
-      }
+      } else if (pasoCapturado === "escuchando-motivo") {
+        setPaso("guardando-motivo");
 
-    } else if (paso === "escuchando-motivo") {
-      setPaso("guardando-motivo");
-
-      const response = await fetch("/api/reporte/guardar-motivo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        const payload = {
           pendienteId: tareaActual.pendienteId,
           actividadId: tareaActual.actividadId,
           motivo: transcript,
-        }),
-      });
+        };
 
-      const data = await response.json();
+        const response = await fetch("/api/reporte/guardar-motivo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
 
-      if (data.success) {
-        speakText("Entendido. Siguiente.");
-        setTimeout(() => avanzarSiguienteTarea(), 1500);
+        const data = await response.json();
+
+        if (data.success) {
+          speakText("Entendido. Siguiente.");
+          setTimeout(() => avanzarSiguienteTarea(), 1500);
+        } else {
+          throw new Error(data.error || "Error al guardar motivo");
+        }
       } else {
-        throw new Error(data.error || "Error al guardar motivo");
       }
+    } catch (error) {
+      setErrorValidacion("Hubo un problema. Inténtalo de nuevo.");
+      setTimeout(() => {
+        setErrorValidacion(null);
+        setPaso(
+          pasoCapturado === "escuchando-que-hizo"
+            ? "preguntando-que-hizo"
+            : "preguntando-motivo",
+        );
+      }, 3000);
+    } finally {
+      isProcessingRef.current = false;
     }
-  } catch (error) {
-    console.error("Error al guardar:", error);
-    setErrorValidacion("Hubo un problema. Inténtalo de nuevo.");
-    setTimeout(() => {
-      setErrorValidacion(null);
-      setPaso(paso === "guardando-que-hizo" ? "preguntando-que-hizo" : "preguntando-motivo");
-    }, 3000);
-  }
-};
-
-
+  };
 
   const avanzarSiguienteTarea = () => {
-    setVoiceTranscript("");
-    voiceTranscriptRef.current = "";
-
     if (indiceActual + 1 < totalTareas) {
       setIndiceActual((prev) => prev + 1);
       setPaso("preguntando-que-hizo");
@@ -301,26 +243,33 @@ const detenerGrabacion = () => {
     setIndiceActual(0);
   };
 
+  const handleCancelar = async () => {
+    await cancelVoiceRecording();
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    stopVoice();
+    onOpenChange(false);
+    setPaso("inicial");
+  };
+
   // ==================== EFECTOS ====================
-useEffect(() => {
+  useEffect(() => {
     let active = true;
 
     if (paso === "preguntando-que-hizo" && tareaActual && isOpen) {
       const textoPrompt = `Tarea ${indiceActual + 1} de ${totalTareas}: ${tareaActual.nombre}. ¿Qué hiciste hoy?`;
-      
-      // Detener cualquier audio previo
+
       if (window.speechSynthesis) window.speechSynthesis.cancel();
-      
       speakText(textoPrompt);
 
-      // Calculamos el tiempo aproximado que tarda en hablar (promedio 150ms por palabra + margen)
       const palabras = textoPrompt.split(" ").length;
-      const tiempoEstimado = (palabras * 450) + 1000; 
+      const tiempoEstimado = palabras * 450 + 1000;
 
       const timer = setTimeout(() => {
         if (active && paso === "preguntando-que-hizo") {
           setPaso("escuchando-que-hizo");
-          iniciarGrabacion();
+          startVoiceRecording();
         }
       }, tiempoEstimado);
 
@@ -331,48 +280,28 @@ useEffect(() => {
     }
   }, [paso, indiceActual, isOpen]);
 
-  // Limpieza total al desmontar o cerrar
   useEffect(() => {
     if (!isOpen) {
-      detenerGrabacion();
+      cancelVoiceRecording();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
     }
   }, [isOpen]);
 
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
+      cleanup();
     };
-  }, []);
-  useEffect(() => {
-  if (!isRecording) return;
-
-  const interval = setInterval(() => {
-    if (!lastSpeechTimeRef.current) return;
-
-    const diff = Date.now() - lastSpeechTimeRef.current;
-
-    if (diff > 2500 && voiceTranscriptRef.current.length >= 5) {
-      clearInterval(interval);
-      enviarRespuesta();
-    }
-  }, 500);
-
-  return () => clearInterval(interval);
-}, [isRecording]);
-
+  }, [cleanup]);
 
   // ==================== RENDER ====================
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-      if(!open) handleCancelar();
-      else onOpenChange(true);
-    }}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleCancelar();
+        else onOpenChange(true);
+      }}
+    >
       <DialogContent
         className={`max-w-2xl max-h-[85vh] overflow-hidden flex flex-col ${
           theme === "dark"
@@ -504,63 +433,30 @@ useEffect(() => {
                 <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
                   <Mic className="w-10 h-10 text-red-500" />
                 </div>
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-0 flex items-center justify-center"
-                  >
-                    <div
-                      className="absolute w-24 h-24 rounded-full border-2 border-red-500 animate-ping"
-                      style={{
-                        animationDelay: `${i * 0.2}s`,
-                        opacity: 0.5 - i * 0.1,
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
 
-              <div
-                className={`inline-block px-4 py-2 rounded-full ${
-                  theme === "dark"
-                    ? "bg-[#252527] border border-[#2a2a2a]"
-                    : "bg-gray-100 border border-gray-200"
-                }`}
-              >
-                <span
-                  className={`text-sm font-medium ${
-                    puedeEnviar ? "text-green-500" : "text-gray-500"
-                  }`}
-                >
-                  {palabrasCount} palabra{palabrasCount !== 1 ? "s" : ""}
-                  {!puedeEnviar && (
-                    <span className="text-xs ml-1 opacity-70">(mín. 5)</span>
-                  )}
-                </span>
-              </div>
-
-              {voiceTranscript && (
+                {/* Círculo de nivel de audio */}
                 <div
-                  className={`p-3 rounded text-sm ${
-                    theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
-                  }`}
-                >
-                  <p className="italic">{voiceTranscript}</p>
+                  className="absolute inset-0 rounded-full border-4 border-red-500 transition-all"
+                  style={{
+                    transform: `scale(${1 + audioLevel / 200})`,
+                    opacity: audioLevel / 100,
+                  }}
+                />
+              </div>
+
+              <p className="text-sm text-gray-500">
+                {isRecording
+                  ? "Escuchando... (Deja de hablar 3 segundos para enviar automáticamente)"
+                  : isTranscribing
+                    ? "Procesando audio..."
+                    : "Preparando micrófono..."}
+              </p>
+
+              {isRecording && (
+                <div className="text-xs text-gray-400">
+                  Nivel de audio: {audioLevel.toFixed(0)}%
                 </div>
               )}
-
-              <Button
-                onClick={enviarRespuesta}
-                disabled={!puedeEnviar}
-                className={`${
-                  puedeEnviar
-                    ? "bg-green-500 hover:bg-green-600"
-                    : "bg-gray-400 cursor-not-allowed"
-                }`}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Enviar Respuesta
-              </Button>
             </div>
           )}
 
@@ -593,63 +489,30 @@ useEffect(() => {
                 <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center animate-pulse">
                   <Mic className="w-10 h-10 text-red-500" />
                 </div>
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-0 flex items-center justify-center"
-                  >
-                    <div
-                      className="absolute w-24 h-24 rounded-full border-2 border-red-500 animate-ping"
-                      style={{
-                        animationDelay: `${i * 0.2}s`,
-                        opacity: 0.5 - i * 0.1,
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
 
-              <div
-                className={`inline-block px-4 py-2 rounded-full ${
-                  theme === "dark"
-                    ? "bg-[#252527] border border-[#2a2a2a]"
-                    : "bg-gray-100 border border-gray-200"
-                }`}
-              >
-                <span
-                  className={`text-sm font-medium ${
-                    puedeEnviar ? "text-green-500" : "text-gray-500"
-                  }`}
-                >
-                  {palabrasCount} palabra{palabrasCount !== 1 ? "s" : ""}
-                  {!puedeEnviar && (
-                    <span className="text-xs ml-1 opacity-70">(mín. 5)</span>
-                  )}
-                </span>
-              </div>
-
-              {voiceTranscript && (
+                {/* Círculo de nivel de audio */}
                 <div
-                  className={`p-3 rounded text-sm ${
-                    theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
-                  }`}
-                >
-                  <p className="italic">{voiceTranscript}</p>
+                  className="absolute inset-0 rounded-full border-4 border-red-500 transition-all"
+                  style={{
+                    transform: `scale(${1 + audioLevel / 200})`,
+                    opacity: audioLevel / 100,
+                  }}
+                />
+              </div>
+
+              <p className="text-sm text-gray-500">
+                {isRecording
+                  ? "Escuchando motivo... (Deja de hablar 3 segundos para enviar)"
+                  : isTranscribing
+                    ? "Procesando audio..."
+                    : "Preparando micrófono..."}
+              </p>
+
+              {isRecording && (
+                <div className="text-xs text-gray-400">
+                  Nivel de audio: {audioLevel.toFixed(0)}%
                 </div>
               )}
-
-              <Button
-                onClick={enviarRespuesta}
-                disabled={!puedeEnviar}
-                className={`${
-                  puedeEnviar
-                    ? "bg-green-500 hover:bg-green-600"
-                    : "bg-gray-400 cursor-not-allowed"
-                }`}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Enviar Motivo
-              </Button>
             </div>
           )}
 
@@ -676,7 +539,6 @@ useEffect(() => {
                 Has reportado todas las tareas del día correctamente.
               </p>
               <div className="flex gap-3 justify-center pt-4">
-
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cerrar
                 </Button>
@@ -701,15 +563,16 @@ useEffect(() => {
           )}
         </div>
 
-        {/* ========== BOTÓN CANCELAR (solo si no está en paso inicial o completado) ========== */}
-       {paso !== "inicial" && paso !== "completado" && (
-          <div className={`flex justify-center p-4 border-t ${
+        {/* ========== BOTÓN CANCELAR ========== */}
+        {paso !== "inicial" && paso !== "completado" && (
+          <div
+            className={`flex justify-center p-4 border-t ${
               theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
             }`}
           >
             <Button
               variant="outline"
-              onClick={handleCancelar} // USAR LA NUEVA FUNCIÓN
+              onClick={handleCancelar}
               className="hover:bg-red-500 hover:text-white transition-colors"
             >
               <X className="w-4 h-4 mr-2" />
