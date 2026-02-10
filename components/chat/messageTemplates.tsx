@@ -9,6 +9,7 @@ import {
   User,
   Mail,
   Check,
+  Users,
 } from "lucide-react";
 import type { AssistantAnalysis } from "@/lib/types";
 
@@ -209,6 +210,185 @@ export const analysisTemplates = {
     </div>
   ),
 };
+
+// ========== MENSAJES DE TAREAS ==========
+
+export const tasksTemplates = {
+  tasksLoaded: ({
+    theme,
+    total,
+    reportadas,
+    pendientes,
+  }: MessageTemplateProps & {
+    total: number;
+    reportadas: number;
+    pendientes: number;
+  }) => (
+    <div
+      className={`p-3 rounded-lg border ${
+        theme === "dark"
+          ? "bg-[#6841ea]/10 border-[#6841ea]/20"
+          : "bg-purple-50 border-purple-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <Target className="w-5 h-5 text-[#6841ea] mt-0.5" />
+        <div className="flex-1">
+          <p className="font-medium text-sm mb-2">Tareas encontradas</p>
+          <div className="flex gap-2 text-xs flex-wrap">
+            <span
+              className={`px-2 py-1 rounded ${
+                theme === "dark"
+                  ? "bg-gray-700 text-gray-300"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              Total: {total}
+            </span>
+            <span
+              className={`px-2 py-1 rounded ${
+                theme === "dark"
+                  ? "bg-green-500/20 text-green-300"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
+              Reportadas: {reportadas}
+            </span>
+            <span
+              className={`px-2 py-1 rounded ${
+                theme === "dark"
+                  ? "bg-amber-500/20 text-amber-300"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              Pendientes: {pendientes}
+            </span>
+          </div>
+          <p
+            className={`text-xs mt-2 ${
+              theme === "dark" ? "text-gray-400" : "text-gray-600"
+            }`}
+          >
+            {pendientes > 0
+              ? "Selecciona las tareas que deseas reportar abajo"
+              : "¡Todas las tareas han sido reportadas!"}
+          </p>
+        </div>
+      </div>
+    </div>
+  ),
+
+  tasksLoadedColaborative: ({
+    theme,
+    total,
+    miasReportadas,
+    otrosReportadas,
+    pendientes,
+  }: MessageTemplateProps & {
+    total: number;
+    miasReportadas: number;
+    otrosReportadas: number;
+    pendientes: number;
+  }) => (
+    <div
+      className={`p-3 rounded-lg border ${
+        theme === "dark"
+          ? "bg-purple-900/20 border-purple-500/20"
+          : "bg-purple-50 border-purple-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <Users className="w-5 h-5 text-purple-500 mt-0.5" />
+        <div className="flex-1">
+          <p className="font-medium text-sm mb-2 flex items-center gap-2">
+            Trabajo colaborativo detectado
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs mb-2">
+            <span
+              className={`px-2 py-1 rounded ${
+                theme === "dark"
+                  ? "bg-gray-700 text-gray-300"
+                  : "bg-gray-100 text-gray-700"
+              }`}
+            >
+              Total: {total}
+            </span>
+            {miasReportadas > 0 && (
+              <span
+                className={`px-2 py-1 rounded ${
+                  theme === "dark"
+                    ? "bg-green-500/20 text-green-300"
+                    : "bg-green-100 text-green-700"
+                }`}
+              >
+                Tuyas: {miasReportadas}
+              </span>
+            )}
+            {otrosReportadas > 0 && (
+              <span
+                className={`px-2 py-1 rounded ${
+                  theme === "dark"
+                    ? "bg-purple-500/20 text-purple-300"
+                    : "bg-purple-100 text-purple-700"
+                }`}
+              >
+                Colaboradores: {otrosReportadas}
+              </span>
+            )}
+            {pendientes > 0 && (
+              <span
+                className={`px-2 py-1 rounded ${
+                  theme === "dark"
+                    ? "bg-amber-500/20 text-amber-300"
+                    : "bg-amber-100 text-amber-700"
+                }`}
+              >
+                Pendientes: {pendientes}
+              </span>
+            )}
+          </div>
+          <p
+            className={`text-xs ${
+              theme === "dark" ? "text-gray-400" : "text-gray-600"
+            }`}
+          >
+            {otrosReportadas > 0 && miasReportadas === 0
+              ? "Hay reportes de tus colaboradores. Puedes ver el progreso del equipo abajo"
+              : pendientes > 0
+                ? "Selecciona las tareas que deseas reportar abajo"
+                : "¡Todo el equipo ha reportado sus tareas!"}
+          </p>
+        </div>
+      </div>
+    </div>
+  ),
+
+  noTasksFound: ({ theme }: MessageTemplateProps) => (
+    <div
+      className={`p-3 rounded-lg border ${
+        theme === "dark"
+          ? "bg-gray-800/50 border-gray-700"
+          : "bg-gray-50 border-gray-200"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+        <div>
+          <p className="font-medium text-sm">No hay tareas pendientes</p>
+          <p
+            className={`text-xs mt-1 ${
+              theme === "dark" ? "text-gray-400" : "text-gray-600"
+            }`}
+          >
+            Todas tus tareas han sido reportadas o no hay tareas asignadas para
+            hoy.
+          </p>
+        </div>
+      </div>
+    </div>
+  ),
+};
+
 // ========== MENSAJES DE ÉXITO ==========
 
 export const successTemplates = {
@@ -324,6 +504,7 @@ export const messageTemplates = {
   system: systemTemplates,
   welcome: welcomeTemplates,
   analysis: analysisTemplates,
+  tasks: tasksTemplates,
   success: successTemplates,
   error: errorTemplates,
 };

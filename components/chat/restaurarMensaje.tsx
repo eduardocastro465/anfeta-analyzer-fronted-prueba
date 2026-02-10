@@ -3,7 +3,7 @@ import type { Message, AssistantAnalysis } from "@/lib/types";
 import type { MensajeHistorial } from "@/lib/interface/historial.interface";
 import { messageTemplates } from "@/components/chat/messageTemplates";
 import { useMessageRestoration } from "@/components/hooks/useMessageRestoration";
-import { TasksPanel, NoTasksMessage } from "@/components/chat/MessageList";
+import { TasksPanel, NoTasksMessage } from "@/components/chat/Taskspanelcontent";
 
 /**
  * Convierte mensajes del historial a mensajes con componentes React

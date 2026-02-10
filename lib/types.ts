@@ -14,11 +14,13 @@ export interface MessageListProps {
   theme: "light" | "dark";
   // AÑADE ESTA LÍNEA
   userEmail?: string;
-  onVoiceMessageClick: (voiceText: string) => void;
+  onVoiceMessageClick?: (voiceText: string) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   assistantAnalysis?: AssistantAnalysis | null; // NUEVO
   onOpenReport: () => void;
   onStartVoiceMode?: () => void;
+  onStartVoiceModeWithTasks?: (taskIds: string[]) => void;
+  onReportCompleted?: () => Promise<void>;
   setStep?: (step: string) => void;
   reportConfig?: {
     horaInicio: string;
@@ -216,7 +218,14 @@ export interface ActividadBase {
 
 export interface Message {
   id: string;
-  type: "bot" | "user" | "system" | "voice" | "analysis";
+  type:
+    | "bot"
+    | "user"
+    | "system"
+    | "voice"
+    | "analysis"
+    | "tasks-panel"
+    | "no-tasks";
   content: string | React.ReactNode;
   timestamp: Date;
   voiceText?: string;

@@ -7,7 +7,7 @@ import { useMemo } from "react";
 interface MessageItemProps {
   message: Message;
   theme: "light" | "dark";
-  onVoiceMessageClick: (voiceText: string) => void;
+  onVoiceMessageClick?: (voiceText: string) => void;
 }
 
 export function MessageItem({
@@ -75,7 +75,7 @@ export function MessageItem({
   const handleClick = useMemo(
     () =>
       message.type === "voice" && message.voiceText
-        ? () => onVoiceMessageClick(message.voiceText!)
+        ? () => onVoiceMessageClick?.(message.voiceText!)
         : undefined,
     [message.type, message.voiceText, onVoiceMessageClick],
   );
@@ -118,14 +118,14 @@ export function MessageItem({
             {message.type === "bot" && (
               <Sparkles className="w-3.5 h-3.5 text-[#6841ea] mt-0.5 shrink-0 animate-pulse" />
             )}
-            
+
             {/* Contenido principal */}
             <div className="flex-1 min-w-0">
               <MessageContent content={message.content} theme={theme} />
-              
+
               {/* Indicador de voz reciente */}
               {isRecentVoice && <VoiceIndicator />}
-              
+
               {/* Timestamp */}
               {message.type !== "system" && (
                 <Timestamp
@@ -207,8 +207,8 @@ function Timestamp({ timestamp, isUser, theme }: TimestampProps) {
         isUser
           ? "text-white/70 text-right"
           : theme === "dark"
-          ? "text-gray-500"
-          : "text-gray-400"
+            ? "text-gray-500"
+            : "text-gray-400"
       }`}
     >
       {timeString}

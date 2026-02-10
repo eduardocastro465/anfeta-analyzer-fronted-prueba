@@ -57,7 +57,7 @@ import {
   cleanExplanationTranscript,
   validateExplanationLength,
 } from "@/util/voiceModeLogic";
-import { MessageList, NoTasksMessage, TasksPanel } from "./chat/MessageList";
+import { MessageList } from "./chat/MessageList";
 import { messageTemplates } from "./chat/messageTemplates";
 import { ChatInputBar } from "./chat/ChatInputBar";
 import { ReporteActividadesModal } from "./ReporteActividadesModal";
@@ -67,6 +67,7 @@ import { transcribirAudioCliente } from "@/lib/transcription";
 import { isReportTime } from "@/util/Timeutils";
 import { useAutoSendVoice } from "@/components/Audio/UseAutoSendVoiceOptions";
 import { useToast } from "@/hooks/use-toast";
+import { TasksPanelContent } from "@/components/chat/Taskspanelcontent";
 
 export function ChatBot({
   colaborador,
@@ -689,7 +690,7 @@ export function ChatBot({
 
         addMessageWithTyping(
           "bot",
-          `¡Hola ${displayName}! 👋 Soy tu asistente.`,
+          `¡Hola ${displayName}! Soy tu asistente.`,
           500,
         );
 
@@ -1214,12 +1215,55 @@ export function ChatBot({
     }
   };
 
+  const calculateTaskStats = (analysis: AssistantAnalysis) => {
+    const actividadesConTareas = analysis.data.revisionesPorActividad
+      .map((revision: any) => {
+        const tareasReportadas = revision.tareasConTiempo.filter(
+          (t: any) => t.reportada || t.terminada || t.confirmada,
+        );
+        const tareasNoReportadas = revision.tareasConTiempo.filter(
+          (t: any) => !t.reportada && !t.terminada && !t.confirmada,
+        );
+
+        return {
+          tareasReportadas,
+          tareasNoReportadas,
+        };
+      })
+      .filter(
+        (r: any) =>
+          r.tareasReportadas.length > 0 || r.tareasNoReportadas.length > 0,
+      );
+
+    const todasReportadas = actividadesConTareas.flatMap(
+      (a: any) => a.tareasReportadas,
+    );
+    const todasNoReportadas = actividadesConTareas.flatMap(
+      (a: any) => a.tareasNoReportadas,
+    );
+
+    // Si tienes información de quién reportó (esMiReporte, reportadoPor, etc.)
+    // puedes agregar esta lógica. Si no, simplemente usa:
+    const miasReportadas = todasReportadas.length; // O filtra por usuario si tienes esa info
+    const otrosReportadas = 0; // O filtra por otros usuarios si tienes esa info
+
+    return {
+      total: todasReportadas.length + todasNoReportadas.length,
+      reportadas: todasReportadas.length,
+      pendientes: todasNoReportadas.length,
+      miasReportadas,
+      otrosReportadas,
+    };
+  };
+
   // ==================== FUNCIONES: ANÁLISIS ====================
+
   const showAssistantAnalysis = async (
     analysis: AssistantAnalysis,
     isRestoration = false,
   ) => {
     if (!isRestoration) {
+      // 1. Mensaje de bienvenida
       addMessageWithTyping(
         "bot",
         messageTemplates.welcome.userInfo({
@@ -1232,6 +1276,7 @@ export function ChatBot({
       );
 
       setTimeout(async () => {
+        // 2. Métricas del análisis
         addMessageWithTyping(
           "bot",
           messageTemplates.analysis.metrics({
@@ -1248,40 +1293,48 @@ export function ChatBot({
           );
 
           if (hayTareas) {
-            const actividadesConTareas =
-              analysis.data.revisionesPorActividad.filter(
-                (r) => r.tareasConTiempo.length > 0,
-              );
-            const totalTareas = actividadesConTareas.reduce(
-              (sum, r) => sum + r.tareasConTiempo.length,
-              0,
-            );
+            const stats = calculateTaskStats(analysis);
 
-            const esHoraReporte = isReportTime(
-              horaInicioReporte,
-              horaFinReporte,
-            );
-
+            // 1. Mensaje informativo
             addMessage(
               "bot",
-              <TasksPanel
-                actividadesConTareasPendientes={actividadesConTareas}
-                totalTareasPendientes={totalTareas}
-                esHoraReporte={esHoraReporte}
-                theme={theme}
-                assistantAnalysis={analysis}
-                onOpenReport={() => setMostrarModalReporte(true)}
-                onStartVoiceMode={handleStartVoiceMode}
-              />,
+              messageTemplates.tasks.tasksLoaded({
+                theme,
+                total: stats.total,
+                reportadas: stats.reportadas,
+                pendientes: stats.pendientes,
+              }),
             );
+
+            // 2. AGREGAR TASKSPANEL COMO COMPONENTE
+            setTimeout(() => {
+              addMessage(
+                "bot",
+                <TasksPanelContent
+                  assistantAnalysis={analysis}
+                  theme={theme}
+                  userEmail={colaborador.email}
+                  onStartVoiceMode={handleStartVoiceMode}
+                  onStartVoiceModeWithTasks={handleStartVoiceModeWithTasks}
+                  onReportCompleted={async () => {
+                    console.log(
+                      "✅ Reporte completado, recargando análisis...",
+                    );
+                    // Opcional: recargar el análisis después de reportar
+                    await fetchAssistantAnalysis(false, false);
+                  }}
+                />,
+                undefined,
+                true, // isWide = true
+              );
+            }, 200);
           } else {
-            addMessage("bot", <NoTasksMessage theme={theme} />);
+            addMessage("bot", messageTemplates.tasks.noTasksFound({ theme }));
           }
         }, 1400);
       }, 800);
     }
   };
-
   const fetchAssistantAnalysis = async (
     showAll = false,
     isRestoration = false,
@@ -1693,6 +1746,10 @@ export function ChatBot({
             onOpenReport={() => setMostrarModalReporte(true)}
             onStartVoiceMode={handleStartVoiceMode}
             onStartVoiceModeWithTasks={handleStartVoiceModeWithTasks}
+            onReportCompleted={async () => {
+              console.log("Reporte completado, recargando análisis...");
+              await fetchAssistantAnalysis(false, false);
+            }}
             reportConfig={{
               horaInicio: horaInicioReporte,
               horaFin: horaFinReporte,
