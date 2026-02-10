@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { validateSession, obtenerHistorialSidebar } from "@/lib/api";
 import type {
   AssistantAnalysis,
   ChatContainerProps,
   ConversacionSidebar,
+  Colaborador
 } from "@/lib/types";
 import type { MensajeHistorial } from "@/lib/interface/historial.interface";
 import { obtenerLabelDia } from "@/util/labelDia";
@@ -22,11 +23,9 @@ import {
   AlertTriangle,
   Info,
 } from "lucide-react";
-import { ChatBot } from "./chat-bot";
 import {
-  obtenerMensajesConversacion,
-  obtenerSessionActual,
   eliminarConversacion,
+  obtenerSessionActual,
 } from "@/lib/historial.service";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -45,7 +44,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Plus, BarChart3, X, AlertCircle } from "lucide-react";
+import { ChatBot } from "./chat-bot";
+import { obtenerMensajesConversacion } from "@/lib/historial.service";
+import { useReporteData } from "@/app/reporte-del-dia/hooks/useReporteData";
+import DashboardView from "@/app/reporte-del-dia/components/DashboardView";
+import type { ApiResponse, Usuario, Actividad, DetalleView } from "@/app/reporte-del-dia/types/reporteTypes";
 
+
+type ViewMode = 'chat' | 'reportes';
 
 export function ChatContainer({
   colaborador,
@@ -54,21 +61,21 @@ export function ChatContainer({
 }: ChatContainerProps) {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [conversaciones, setConversaciones] = useState<ConversacionSidebar[]>(
-    [],
-  );
-  const [conversacionActiva, setConversacionActiva] = useState<string | null>(
-    null,
-  );
+  const [conversaciones, setConversaciones] = useState<ConversacionSidebar[]>([]);
+  const [conversacionActiva, setConversacionActiva] = useState<string | null>(null);
   const [sidebarCargando, setSidebarCargando] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-  // Estados para restauración
-  const [mensajesRestaurados, setMensajesRestaurados] = useState<
-    MensajeHistorial[]
-  >([]);
-  const [analisisRestaurado, setAnalisisRestaurado] =
-    useState<AssistantAnalysis | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('chat');
+
+  // ESTADOS NUEVOS PARA DASHBOARD
+  const [currentDashboardView, setCurrentDashboardView] = useState<DetalleView>('dashboard');
+  const [selectedDashboardUser, setSelectedDashboardUser] = useState<Usuario | null>(null);
+  const [selectedDashboardActivity, setSelectedDashboardActivity] = useState<Actividad | null>(null);
+
+  const [mensajesRestaurados, setMensajesRestaurados] = useState<MensajeHistorial[]>([]);
+  const [analisisRestaurado, setAnalisisRestaurado] = useState<AssistantAnalysis | null>(null);
   const [cargandoConversacion, setCargandoConversacion] = useState(false);
 
   // Estados para eliminar
@@ -77,11 +84,18 @@ export function ChatContainer({
   const [eliminando, setEliminando] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [verificandoConversacion, setVerificandoConversacion] = useState(false);
+  const {
+    datos: reporteData,
+    loading: loadingReportes,
+    error: errorReportes,
+    refreshing: refreshingReportes,
+    tiempoUltimaCarga,
+    cargarDatosReales,
+  } = useReporteData();
 
   const router = useRouter();
   const { toast } = useToast();
 
-  // Agrupar conversaciones por día
   const conversacionesAgrupadas = conversaciones.reduce(
     (acc, conv) => {
       const dia = obtenerLabelDia(conv.createdAt);
@@ -92,6 +106,31 @@ export function ChatContainer({
     {} as Record<string, ConversacionSidebar[]>,
   );
 
+  // HANDLER DE NAVEGACIÓN PARA DASHBOARD
+  const handleDashboardNavigate = useCallback((view: DetalleView, user?: Usuario, activity?: Actividad) => {
+    console.log("🚀 Dashboard Navigate - Vista:", view,
+      "Usuario:", user?.nombre,
+      "Actividad:", activity?.titulo);
+    setCurrentDashboardView(view);
+    setSelectedDashboardUser(user || null);
+    setSelectedDashboardActivity(activity || null);
+  }, []);
+
+  const handleViewUser = useCallback((usuario: Usuario) => {
+    console.log("Ver usuario:", usuario.nombre);
+    handleDashboardNavigate('usuario', usuario);
+  }, [handleDashboardNavigate]);
+
+  const handleViewActivity = useCallback((actividad: Actividad, usuario: Usuario) => {
+    console.log("Ver actividad:", actividad.titulo);
+    handleDashboardNavigate('actividad', usuario, actividad);
+  }, [handleDashboardNavigate]);
+
+  const handleBackToDashboard = useCallback(() => {
+    console.log("Volviendo al dashboard");
+    handleDashboardNavigate('dashboard');
+  }, [handleDashboardNavigate]);
+
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
@@ -100,7 +139,21 @@ export function ChatContainer({
     }
   };
 
-  // Dark mode inicial
+  const handleViewReports = () => {
+    if (colaborador.email === "jjohn@pprin.com") {
+      setViewMode('reportes');
+      // Resetear el dashboard a vista general
+      handleDashboardNavigate('dashboard');
+      cargarDatosReales(true);
+    } else {
+      alert("Solo el administrador puede acceder a los reportes");
+    }
+  };
+
+  const handleBackToChat = () => {
+    setViewMode('chat');
+  };
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.classList.add("dark");
@@ -244,6 +297,7 @@ export function ChatContainer({
   const seleccionarConversacion = async (conv: ConversacionSidebar) => {
     if (conversacionActiva === conv.sessionId) return;
     await restaurarConversacion(conv.sessionId);
+    setViewMode('chat');
   };
 
   const agregarNuevaConversacion = (nuevaConv: ConversacionSidebar) => {
@@ -258,6 +312,7 @@ export function ChatContainer({
 
     setConversaciones((prev) => [nuevaConv, ...prev]);
     setConversacionActiva(nuevaConv.sessionId);
+    setViewMode('chat');
   };
 
   const actualizarNombreConversacion = (
@@ -268,10 +323,10 @@ export function ChatContainer({
       prev.map((conv) =>
         conv.sessionId === sessionId
           ? {
-              ...conv,
-              nombreConversacion: nuevoNombre,
-              updatedAt: new Date().toISOString(),
-            }
+            ...conv,
+            nombreConversacion: nuevoNombre,
+            updatedAt: new Date().toISOString(),
+          }
           : conv,
       ),
     );
@@ -474,9 +529,8 @@ export function ChatContainer({
 
   return (
     <div
-      className={`min-h-screen font-['Arial'] flex ${
-        theme === "dark" ? "bg-[#101010] text-white" : "bg-white text-gray-900"
-      }`}
+      className={`min-h-screen font-['Arial'] flex ${theme === "dark" ? "bg-[#101010] text-white" : "bg-white text-gray-900"
+        }`}
     >
       {/* ========== SIDEBAR DE HISTORIAL - RESPONSIVO ========== */}
       <aside

@@ -39,7 +39,9 @@ import {
   Target,
   Percent,
   Users,
-  CalendarDays
+  CalendarDays,
+  Sunrise,
+  Sunset
 } from "lucide-react";
 import { ApiResponse, DetalleView, Usuario, Actividad, Pendiente } from "./types";
 import { useToast } from "@/components/ui/use-toast";
@@ -66,11 +68,11 @@ export default function DetallesView({
   selectedUser,
   selectedActivity,
   selectedTask,
-  onBackToGeneral,
-  onBackToUser,
-  onViewActivity,
-  onViewTask,
-  onViewUser,
+  onBackToGeneral = () => console.warn("onBackToGeneral no proporcionado"),
+  onBackToUser = () => console.warn("onBackToUser no proporcionado"),
+  onViewActivity = () => console.warn("onViewActivity no proporcionado"),
+  onViewTask = () => console.warn("onViewTask no proporcionado"),
+  onViewUser = () => console.warn("onViewUser no proporcionado"),
   obtenerIniciales
 }: DetallesViewProps) {
   const { toast } = useToast();
@@ -97,9 +99,16 @@ export default function DetallesView({
     });
   };
 
-  // Vista General de Detalles - LISTA DE USUARIOS CON TABLA
+  // Función para detectar si un reporte es de mañana o tarde
+  const detectarTurnoReporte = (horaInicio: string): 'mañana' | 'tarde' | 'indeterminado' => {
+    const hora = parseInt(horaInicio.split(':')[0]);
+    if (hora >= 0 && hora < 12) return 'mañana';
+    if (hora >= 12 && hora < 24) return 'tarde';
+    return 'indeterminado';
+  };
+
+  // Vista General de Detalles - LISTA DE USUARIOS CON TABLA COMPACTA
   if (detalleView === 'general') {
-    // Filtrar usuarios por búsqueda
     const usuariosFiltrados = useMemo(() => {
       if (!usuarioSearch) return datos.data.usuarios;
       
@@ -112,39 +121,38 @@ export default function DetallesView({
     }, [datos.data.usuarios, usuarioSearch]);
 
     return (
-      <div className="font-arial p-6 space-y-6">
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="font-arial p-4 space-y-4">
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardHeader className="p-4 pb-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-gray-100">Reportes de Colaboradores</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Selecciona un colaborador para ver sus reportes detallados
+                <CardTitle className="text-gray-100 text-lg">Reportes de Colaboradores</CardTitle>
+                <CardDescription className="text-gray-400 text-sm">
+                  Selecciona un colaborador para ver sus reportes
                 </CardDescription>
               </div>
               
-              <div className="relative w-full md:w-64">
+              <div className="relative w-full md:w-56">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <Input
                   placeholder="Buscar colaborador..."
                   value={usuarioSearch}
                   onChange={(e) => setUsuarioSearch(e.target.value)}
-                  className="pl-10 bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 focus:border-purple-500 focus:ring-purple-500"
+                  className="pl-10 bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 h-9 text-sm"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border-none overflow-hidden">
+          <CardContent className="p-4 pt-2">
+            <div className="rounded-lg overflow-hidden">
               <Table>
                 <TableHeader className="bg-[#1a1a1a]">
-                  <TableRow className="hover:bg-gray-800 border-none">
-                    <TableHead className="text-gray-300 font-medium">Colaborador</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Actividades</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Tareas</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Progreso</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Última Actividad</TableHead>
-                    <TableHead className="text-gray-300 font-medium text-right">Acciones</TableHead>
+                  <TableRow className="border-none">
+                    <TableHead className="text-gray-300 font-medium text-sm py-3">Colaborador</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-3">Actividades</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-3">Tareas</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-3">Progreso</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-3 text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -156,41 +164,41 @@ export default function DetallesView({
                     return (
                       <TableRow 
                         key={usuario._id} 
-                        className="bg-[#1a1a1a] border-[#141414] hover:bg-[#1f1f1f] cursor-pointer"
+                        className="bg-[#1a1a1a] hover:bg-[#1f1f1f] cursor-pointer"
                         onClick={() => onViewUser(usuario)}
                       >
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-7 w-7">
+                              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs">
                                 {obtenerIniciales(usuario.nombre)}
                               </AvatarFallback>
                             </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-100">{usuario.nombre}</div>
-                              <div className="text-sm text-gray-500">{usuario.email}</div>
+                            <div className="min-w-0">
+                              <div className="font-medium text-gray-100 text-sm truncate">{usuario.nombre}</div>
+                              <div className="text-xs text-gray-500 truncate">{usuario.email}</div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <Badge className="bg-gray-800 text-gray-300">
+                        <TableCell className="py-3">
+                          <Badge className="bg-gray-800 text-gray-300 text-xs px-2">
                             {usuario.estadisticas.totalActividades}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-3">
                           <div className="flex flex-col gap-1">
-                            <Badge className="bg-gray-800 text-gray-300 w-fit">
-                              {usuario.estadisticas.totalTareas} total
+                            <Badge className="bg-gray-800 text-gray-300 text-xs px-2 w-fit">
+                              {usuario.estadisticas.totalTareas}
                             </Badge>
                             {usuario.estadisticas.tareasTerminadas > 0 && (
-                              <Badge className="bg-green-500/20 text-green-400 border-green-500/30 w-fit">
-                                {usuario.estadisticas.tareasTerminadas} terminadas
+                              <Badge className="bg-green-500/20 text-green-400 text-xs px-2 w-fit border-green-500/30">
+                                {usuario.estadisticas.tareasTerminadas}
                               </Badge>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="w-32">
+                        <TableCell className="py-3">
+                          <div className="w-28">
                             <div className="flex justify-between text-xs mb-1">
                               <span className="text-gray-400">{porcentaje}%</span>
                             </div>
@@ -206,21 +214,14 @@ export default function DetallesView({
                             </Progress>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="text-sm text-gray-300">
-                            {usuario.actividades.length > 0 
-                              ? new Date(usuario.actividades[usuario.actividades.length - 1].fecha).toLocaleDateString()
-                              : 'Sin actividades'}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="py-3 text-right">
                           <Button
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               onViewUser(usuario);
                             }}
-                            className="bg-[#6841ea] hover:bg-[#5a36d1] text-white"
+                            className="bg-[#6841ea] hover:bg-[#5a36d1] text-white h-8 w-8 p-0"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -233,7 +234,7 @@ export default function DetallesView({
             </div>
             
             {usuariosFiltrados.length === 0 && (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-6 text-gray-400 text-sm">
                 No se encontraron colaboradores que coincidan con la búsqueda
               </div>
             )}
@@ -243,9 +244,8 @@ export default function DetallesView({
     );
   }
 
-  // Vista Detalle de Usuario - ACTIVIDADES AGRUPADAS POR FECHA CON TABLA
+  // Vista Detalle de Usuario - ACTIVIDADES AGRUPADAS POR FECHA CON DETALLES DE TURNO
   if (detalleView === 'usuario' && selectedUser) {
-    // Agrupar actividades por fecha
     const actividadesPorFecha = useMemo(() => {
       return selectedUser.actividades.reduce((acc, actividad) => {
         const fecha = actividad.fecha;
@@ -257,7 +257,6 @@ export default function DetallesView({
       }, {} as Record<string, typeof selectedUser.actividades>);
     }, [selectedUser.actividades]);
 
-    // Ordenar fechas de más reciente a más antigua
     const fechasOrdenadas = Object.keys(actividadesPorFecha).sort((a, b) => 
       new Date(b).getTime() - new Date(a).getTime()
     );
@@ -272,192 +271,173 @@ export default function DetallesView({
       setExpandedDates(newExpanded);
     };
 
-    // Calcular estadísticas por fecha
-    const calcularEstadisticasFecha = (actividades: typeof selectedUser.actividades) => {
-      return {
-        totalActividades: actividades.length,
-        totalTareas: actividades.reduce((sum, a) => sum + a.pendientes.length, 0),
-        tareasTerminadas: actividades.reduce((sum, a) => 
-          sum + a.pendientes.filter(t => t.terminada).length, 0),
-        tareasConfirmadas: actividades.reduce((sum, a) => 
-          sum + a.pendientes.filter(t => t.confirmada).length, 0),
-        tiempoTotal: actividades.reduce((sum, a) => 
-          sum + a.pendientes.reduce((sumT, t) => sumT + t.duracionMin, 0), 0)
+    // Función para obtener reportes de mañana y tarde
+    const obtenerReportesPorTurno = (actividades: typeof selectedUser.actividades) => {
+      const reportes = {
+        mañana: [] as typeof actividades,
+        tarde: [] as typeof actividades,
+        indeterminado: [] as typeof actividades
       };
+
+      actividades.forEach(actividad => {
+        const turno = detectarTurnoReporte(actividad.horaInicio);
+        reportes[turno].push(actividad);
+      });
+
+      return reportes;
     };
 
     return (
-      <div className="p-6 space-y-6">
-        {/* User Profile Card */}
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-transparent border-none hover:border-purple-500/50 transition-colors">
-          <CardContent>
-            <div className="flex flex-col md:flex-row items-start gap-6">
+      <div className="p-4 space-y-4">
+        {/* User Profile Card Compacta */}
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-start gap-4">
               <div className="shrink-0">
-                <Avatar className="h-24 w-24">
-                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-2xl">
+                <Avatar className="h-16 w-16">
+                  <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-lg">
                     {obtenerIniciales(selectedUser.nombre)}
                   </AvatarFallback>
                 </Avatar>
               </div>
               
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-3">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-gray-100">{selectedUser.nombre}</h2>
-                    <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h2 className="text-xl font-bold text-gray-100">{selectedUser.nombre}</h2>
+                    <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30 text-xs">
                       {selectedUser.fuente}
                     </Badge>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-400">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 mt-1">
                     <span className="flex items-center gap-1">
-                      <Mail className="w-4 h-4" />
+                      <Mail className="w-3 h-3" />
                       {selectedUser.email}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Hash className="w-4 h-4" />
+                      <Hash className="w-3 h-3" />
                       ID: {selectedUser.odooUserId}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      Registro: {new Date(selectedUser.createdAt).toLocaleDateString()}
-                    </span>
                   </div>
                 </div>
                 
-                {/* Estadísticas en Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Activity className="w-4 h-4 text-purple-400" />
-                      <p className="text-sm text-gray-400">Actividades</p>
+                {/* Estadísticas Compactas */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2 bg-gray-800/30 rounded border border-gray-700/50">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Activity className="w-3 h-3 text-purple-400" />
+                      <p className="text-xs text-gray-400">Actividades</p>
                     </div>
-                    <p className="text-xl font-bold text-gray-100">{selectedUser.estadisticas.totalActividades}</p>
+                    <p className="text-lg font-bold text-gray-100">{selectedUser.estadisticas.totalActividades}</p>
                   </div>
-                  <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Target className="w-4 h-4 text-pink-400" />
-                      <p className="text-sm text-gray-400">Tareas</p>
+                  <div className="p-2 bg-gray-800/30 rounded border border-gray-700/50">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Target className="w-3 h-3 text-pink-400" />
+                      <p className="text-xs text-gray-400">Tareas</p>
                     </div>
-                    <p className="text-xl font-bold text-gray-100">{selectedUser.estadisticas.totalTareas}</p>
+                    <p className="text-lg font-bold text-gray-100">{selectedUser.estadisticas.totalTareas}</p>
                   </div>
-                  <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle className="w-4 h-4 text-green-400" />
-                      <p className="text-sm text-gray-400">Terminadas</p>
+                  <div className="p-2 bg-gray-800/30 rounded border border-gray-700/50">
+                    <div className="flex items-center gap-1 mb-1">
+                      <CheckCircle className="w-3 h-3 text-green-400" />
+                      <p className="text-xs text-gray-400">Terminadas</p>
                     </div>
-                    <p className="text-xl font-bold text-green-400">{selectedUser.estadisticas.tareasTerminadas}</p>
+                    <p className="text-lg font-bold text-green-400">{selectedUser.estadisticas.tareasTerminadas}</p>
                   </div>
-                  <div className="p-3 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Timer className="w-4 h-4 text-blue-400" />
-                      <p className="text-sm text-gray-400">Tiempo</p>
+                  <div className="p-2 bg-gray-800/30 rounded border border-gray-700/50">
+                    <div className="flex items-center gap-1 mb-1">
+                      <Timer className="w-3 h-3 text-blue-400" />
+                      <p className="text-xs text-gray-400">Tiempo</p>
                     </div>
-                    <p className="text-xl font-bold text-blue-400">{selectedUser.estadisticas.tiempoTotalMinutos} min</p>
+                    <p className="text-lg font-bold text-blue-400">{selectedUser.estadisticas.tiempoTotalMinutos} min</p>
                   </div>
-                </div>
-                
-                {/* Progreso General */}
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1">
-                    <div className="flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4 text-purple-400" />
-                      <span className="text-gray-400">Progreso general</span>
-                    </div>
-                    <span className="text-gray-300">
-                      {selectedUser.estadisticas.totalTareas > 0 
-                        ? Math.round((selectedUser.estadisticas.tareasTerminadas / selectedUser.estadisticas.totalTareas) * 100)
-                        : 0}%
-                    </span>
-                  </div>
-                  <Progress 
-                    value={(selectedUser.estadisticas.tareasTerminadas / selectedUser.estadisticas.totalTareas) * 100}
-                    className="h-2 bg-gray-700"
-                  >
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full" />
-                  </Progress>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Actividades por Fecha CON TABLAS EXPANDIBLES */}
-        <div className="space-y-6">
+        {/* Reportes por Fecha con Detalles de Turno */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-bold text-gray-100">Reportes por Fecha</h3>
-              <p className="text-sm text-gray-400">
-                {selectedUser.actividades.length} reportes en {fechasOrdenadas.length} fechas diferentes
+              <h3 className="text-lg font-bold text-gray-100">Reportes por Fecha</h3>
+              <p className="text-xs text-gray-400">
+                {selectedUser.actividades.length} reportes en {fechasOrdenadas.length} fechas
               </p>
             </div>
-            <Badge className="bg-gray-800 text-gray-300">
-              {fechasOrdenadas.length} fechas
-            </Badge>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-3">
             {fechasOrdenadas.map((fecha) => {
               const actividades = actividadesPorFecha[fecha];
-              const estadisticas = calcularEstadisticasFecha(actividades);
-              const porcentaje = estadisticas.totalTareas > 0 
-                ? Math.round((estadisticas.tareasTerminadas / estadisticas.totalTareas) * 100)
-                : 0;
+              const reportesPorTurno = obtenerReportesPorTurno(actividades);
+              const tieneReporteManana = reportesPorTurno.mañana.length > 0;
+              const tieneReporteTarde = reportesPorTurno.tarde.length > 0;
               const isExpanded = expandedDates.has(fecha);
+              
+              // Calcular estadísticas totales
+              const totalActividades = actividades.length;
+              const totalTareas = actividades.reduce((sum, a) => sum + a.pendientes.length, 0);
+              const tareasTerminadas = actividades.reduce((sum, a) => 
+                sum + a.pendientes.filter(t => t.terminada).length, 0);
+              const tiempoTotal = actividades.reduce((sum, a) => 
+                sum + a.pendientes.reduce((sumT, t) => sumT + t.duracionMin, 0), 0);
+              const porcentaje = totalTareas > 0 ? Math.round((tareasTerminadas / totalTareas) * 100) : 0;
               
               return (
                 <Card 
                   key={fecha}
-                  className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-pink-500/50 transition-colors"
+                  className="bg-[#2a2a2a] border-none rounded-lg hover:border-pink-500/50 transition-colors"
                 >
-                  <CardContent className="p-0 px-6">
-                    {/* Header de fecha */}
+                  <CardContent className="p-4">
+                    {/* Header compacto de fecha */}
                     <div 
-                      className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 cursor-pointer"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer mb-2"
                       onClick={() => toggleDateExpand(fecha)}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="p-1 h-8 w-8"
+                          className="p-1 h-6 w-6"
                         >
                           {isExpanded ? (
-                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                            <ChevronUp className="w-3 h-3 text-gray-400" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                            <ChevronDown className="w-3 h-3 text-gray-400" />
                           )}
                         </Button>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="w-5 h-5 text-purple-400" />
-                            <h4 className="text-lg font-semibold text-gray-100">
+                          <div className="flex items-center gap-1">
+                            <CalendarDays className="w-4 h-4 text-purple-400" />
+                            <h4 className="font-semibold text-gray-100">
                               {new Date(fecha).toLocaleDateString('es-ES', { 
-                                weekday: 'long', 
+                                weekday: 'short', 
                                 year: 'numeric', 
-                                month: 'long', 
+                                month: 'short', 
                                 day: 'numeric' 
                               })}
                             </h4>
                           </div>
-                          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-400 mt-1">
-                            <Badge className="bg-gray-800 text-gray-300">
-                              {actividades.length} actividades
-                            </Badge>
-                            <Badge className="bg-purple-500/20 text-purple-400">
-                              {estadisticas.totalTareas} tareas
-                            </Badge>
-                            <Badge className="bg-green-500/20 text-green-400">
-                              {estadisticas.tareasTerminadas} terminadas
-                            </Badge>
-                            <Badge className="bg-blue-500/20 text-blue-400">
-                              {estadisticas.tiempoTotal} min
-                            </Badge>
+                          {/* Indicadores de reportes de mañana y tarde */}
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-1">
+                              <Badge className={`text-xs px-2 ${tieneReporteManana ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-gray-800 text-gray-400'}`}>
+                                <Sunrise className="w-3 h-3 mr-1" />
+                                {tieneReporteManana ? 'Con reporte mañana' : 'Sin reporte mañana'}
+                              </Badge>
+                              <Badge className={`text-xs px-2 ${tieneReporteTarde ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-gray-800 text-gray-400'}`}>
+                                <Sunset className="w-3 h-3 mr-1" />
+                                {tieneReporteTarde ? 'Con reporte tarde' : 'Sin reporte tarde'}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-4">
-                        <div className="w-32">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24">
                           <div className="flex justify-between text-xs mb-1">
                             <span className="text-gray-400">Progreso</span>
                             <span className="text-gray-300">{porcentaje}%</span>
@@ -473,117 +453,115 @@ export default function DetallesView({
                             }`} />
                           </Progress>
                         </div>
-                        
-                        <Badge className={`${
-                          porcentaje === 100 
-                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                            : 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30'
-                        }`}>
-                          {porcentaje === 100 ? 'Completado' : 'En progreso'}
-                        </Badge>
                       </div>
                     </div>
                     
-                    {/* Tabla de actividades (expandible) */}
+                    {/* Detalles expandidos con turnos */}
                     {isExpanded && (
-                      <div className="mt-6">
-                        <div className="mb-4">
-                          <h5 className="text-lg font-semibold text-gray-100 mb-2">Actividades del día</h5>
-                          <Separator className="bg-gray-700" />
-                        </div>
+                      <div className="mt-4 space-y-4">
+                        <Separator className="bg-gray-700" />
                         
-                        <div className="rounded-lg border-none overflow-hidden">
-                          <Table>
-                            <TableHeader className="bg-[#1a1a1a]">
-                              <TableRow className="hover:bg-gray-800 border-none">
-                                <TableHead className="text-gray-300 font-medium">Hora</TableHead>
-                                <TableHead className="text-gray-300 font-medium">Actividad</TableHead>
-                                <TableHead className="text-gray-300 font-medium">Tareas</TableHead>
-                                <TableHead className="text-gray-300 font-medium">Estado</TableHead>
-                                <TableHead className="text-gray-300 font-medium text-right">Acciones</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {actividades.map((actividad) => {
-                                const tareasTerminadas = actividad.pendientes.filter(t => t.terminada).length;
-                                const actPorcentaje = actividad.pendientes.length > 0 
-                                  ? Math.round((tareasTerminadas / actividad.pendientes.length) * 100)
-                                  : 0;
-                                
-                                return (
-                                  <TableRow 
-                                    key={actividad.actividadId} 
-                                    className="bg-[#1a1a1a] border-[#141414] hover:bg-[#1f1f1f]"
-                                  >
-                                    <TableCell>
-                                      <div className="text-sm text-gray-300">
+                        {/* Reporte de Mañana */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Sunrise className="w-4 h-4 text-amber-400" />
+                            <h5 className="font-medium text-gray-100">Reporte de Mañana</h5>
+                            <Badge className={`text-xs ${tieneReporteManana ? 'bg-green-500/20 text-green-400' : 'bg-gray-800 text-gray-400'}`}>
+                              {tieneReporteManana ? `${reportesPorTurno.mañana.length} actividades` : 'Sin reporte'}
+                            </Badge>
+                          </div>
+                          
+                          {tieneReporteManana ? (
+                            <div className="space-y-2">
+                              {reportesPorTurno.mañana.map((actividad) => (
+                                <div 
+                                  key={actividad.actividadId} 
+                                  className="p-2 bg-[#1a1a1a] rounded border border-gray-700/50 hover:bg-[#1f1f1f] cursor-pointer"
+                                  onClick={() => onViewActivity(actividad, selectedUser)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                      <div className="font-medium text-gray-100 text-sm truncate">
+                                        {actividad.titulo}
+                                      </div>
+                                      <div className="text-xs text-gray-400 mt-1">
                                         {actividad.horaInicio} - {actividad.horaFin}
                                       </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="max-w-[250px]">
-                                        <div className="font-medium text-gray-100 truncate">
-                                          {actividad.titulo}
-                                        </div>
-                                        {actividad.pendientes.length > 0 && (
-                                          <div className="text-xs text-gray-400 mt-1 line-clamp-1">
-                                            {actividad.pendientes[0]?.nombre || 'Sin descripción'}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex flex-col gap-1">
-                                        <Badge className="bg-gray-800 text-gray-300 w-fit">
-                                          {actividad.pendientes.length} total
-                                        </Badge>
-                                        <div className="w-20">
-                                          <Progress value={actPorcentaje} className="h-1 bg-gray-700">
-                                            <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full" />
-                                          </Progress>
-                                        </div>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30">
-                                        {actividad.status}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      <Button
-                                        size="sm"
-                                        onClick={() => onViewActivity(actividad, selectedUser)}
-                                        className="bg-[#6841ea] hover:bg-[#5a36d1] text-white"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
+                                    </div>
+                                    <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30 text-xs">
+                                      {actividad.pendientes.length} tareas
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-[#1a1a1a] rounded border border-dashed border-gray-700/50 text-center">
+                              <p className="text-gray-400 text-sm">No hay reporte de la mañana para esta fecha</p>
+                            </div>
+                          )}
                         </div>
                         
-                        {/* Resumen de la fecha */}
-                        <div className="mt-6 p-4 bg-[#1a1a1a] rounded-lg border border-none">
-                          <h5 className="font-semibold text-gray-200 mb-3">Resumen del día</h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="text-center">
-                              <p className="text-sm text-gray-400">Actividades</p>
-                              <p className="text-2xl font-bold text-gray-100">{estadisticas.totalActividades}</p>
+                        {/* Reporte de Tarde */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Sunset className="w-4 h-4 text-blue-400" />
+                            <h5 className="font-medium text-gray-100">Reporte de Tarde</h5>
+                            <Badge className={`text-xs ${tieneReporteTarde ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-800 text-gray-400'}`}>
+                              {tieneReporteTarde ? `${reportesPorTurno.tarde.length} actividades` : 'Sin reporte'}
+                            </Badge>
+                          </div>
+                          
+                          {tieneReporteTarde ? (
+                            <div className="space-y-2">
+                              {reportesPorTurno.tarde.map((actividad) => (
+                                <div 
+                                  key={actividad.actividadId} 
+                                  className="p-2 bg-[#1a1a1a] rounded border border-gray-700/50 hover:bg-[#1f1f1f] cursor-pointer"
+                                  onClick={() => onViewActivity(actividad, selectedUser)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="min-w-0">
+                                      <div className="font-medium text-gray-100 text-sm truncate">
+                                        {actividad.titulo}
+                                      </div>
+                                      <div className="text-xs text-gray-400 mt-1">
+                                        {actividad.horaInicio} - {actividad.horaFin}
+                                      </div>
+                                    </div>
+                                    <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30 text-xs">
+                                      {actividad.pendientes.length} tareas
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-center">
-                              <p className="text-sm text-gray-400">Tareas totales</p>
-                              <p className="text-2xl font-bold text-purple-400">{estadisticas.totalTareas}</p>
+                          ) : (
+                            <div className="p-3 bg-[#1a1a1a] rounded border border-dashed border-gray-700/50 text-center">
+                              <p className="text-gray-400 text-sm">No hay reporte de la tarde para esta fecha</p>
                             </div>
-                            <div className="text-center">
-                              <p className="text-sm text-gray-400">Tareas terminadas</p>
-                              <p className="text-2xl font-bold text-green-400">{estadisticas.tareasTerminadas}</p>
+                          )}
+                        </div>
+                        
+                        {/* Resumen compacto */}
+                        <div className="p-3 bg-[#1a1a1a] rounded border border-gray-700/50">
+                          <h5 className="font-medium text-gray-200 mb-2 text-sm">Resumen del día</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                              <p className="text-xs text-gray-400">Actividades</p>
+                              <p className="text-lg font-bold text-gray-100">{totalActividades}</p>
                             </div>
-                            <div className="text-center">
-                              <p className="text-sm text-gray-400">Tiempo total</p>
-                              <p className="text-2xl font-bold text-blue-400">{estadisticas.tiempoTotal} min</p>
+                            <div>
+                              <p className="text-xs text-gray-400">Tareas totales</p>
+                              <p className="text-lg font-bold text-purple-400">{totalTareas}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-400">Tareas terminadas</p>
+                              <p className="text-lg font-bold text-green-400">{tareasTerminadas}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-400">Tiempo total</p>
+                              <p className="text-lg font-bold text-blue-400">{tiempoTotal} min</p>
                             </div>
                           </div>
                         </div>
@@ -599,9 +577,8 @@ export default function DetallesView({
     );
   }
 
-  // Vista Detalle de Actividad CON TABLA DE TAREAS
+  // Vista Detalle de Actividad CON TABLA DE TAREAS COMPACTA
   if (detalleView === 'actividad' && selectedActivity && selectedUser) {
-    // Filtrar tareas por búsqueda
     const tareasFiltradas = useMemo(() => {
       return selectedActivity.pendientes.filter(tarea => {
         if (!tareaSearch) return true;
@@ -614,92 +591,102 @@ export default function DetallesView({
       });
     }, [selectedActivity.pendientes, tareaSearch]);
 
+    // Detectar turno de la actividad
+    const turnoActividad = detectarTurnoReporte(selectedActivity.horaInicio);
+
     return (
-      <div className="p-6 space-y-6">
-        {/* Activity Header Card */}
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-transparent border-none hover:border-purple-500/50 transition-colors">
-          <CardContent>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <Folder className="w-6 h-6 text-purple-400" />
-                  <h2 className="text-2xl font-bold text-gray-100">{selectedActivity.titulo}</h2>
+      <div className="p-4 space-y-4">
+        {/* Activity Header Card Compacta */}
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`p-1.5 rounded ${turnoActividad === 'mañana' ? 'bg-amber-500/20' : 'bg-blue-500/20'}`}>
+                    {turnoActividad === 'mañana' ? (
+                      <Sunrise className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Sunset className="w-4 h-4 text-blue-400" />
+                    )}
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-100 truncate">{selectedActivity.titulo}</h2>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
+                    <User className="w-3 h-3" />
                     {selectedUser.nombre}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
+                    <Calendar className="w-3 h-3" />
                     {selectedActivity.fecha}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Clock className="w-4 h-4" />
+                    <Clock className="w-3 h-3" />
                     {selectedActivity.horaInicio} - {selectedActivity.horaFin}
                   </span>
-                  <Badge className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-white border-purple-500/30">
-                    {selectedActivity.status}
+                  <Badge className={`text-xs ${turnoActividad === 'mañana' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-blue-500/20 text-blue-400 border-blue-500/30'}`}>
+                    {turnoActividad === 'mañana' ? 'Reporte Mañana' : 'Reporte Tarde'}
                   </Badge>
                 </div>
               </div>
               
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 shrink-0">
                 <Button
                   onClick={onBackToUser}
                   variant="outline"
-                  className="border-none text-gray-300 hover:bg-gray-800 hover:text-white hover:border-purple-500/50"
+                  size="sm"
+                  className="border-none text-gray-300 hover:bg-gray-800 hover:text-white h-8 text-xs"
                 >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Volver a usuario
+                  <ArrowLeft className="w-3 h-3 mr-1" />
+                  Volver
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Activity Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-            <CardContent className="text-center p-4">
+        {/* Stats Compactas */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3 text-center">
               <div className="flex flex-col items-center">
-                <Target className="w-8 h-8 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-400">Total Tareas</p>
-                <p className="text-3xl font-bold text-gray-100 mt-1">{selectedActivity.pendientes.length}</p>
+                <Target className="w-5 h-5 text-gray-400 mb-1" />
+                <p className="text-xs text-gray-400">Total Tareas</p>
+                <p className="text-xl font-bold text-gray-100">{selectedActivity.pendientes.length}</p>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-pink-500/50 transition-colors">
-            <CardContent className="text-center p-4">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3 text-center">
               <div className="flex flex-col items-center">
-                <CheckCircle className="w-8 h-8 text-purple-400 mb-2" />
-                <p className="text-sm text-gray-400">Terminadas</p>
-                <p className="text-3xl font-bold text-purple-400 mt-1">
+                <CheckCircle className="w-5 h-5 text-purple-400 mb-1" />
+                <p className="text-xs text-gray-400">Terminadas</p>
+                <p className="text-xl font-bold text-purple-400">
                   {selectedActivity.pendientes.filter(t => t.terminada).length}
                 </p>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-blue-500/50 transition-colors">
-            <CardContent className="text-center p-4">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3 text-center">
               <div className="flex flex-col items-center">
-                <CheckCircle className="w-8 h-8 text-blue-400 mb-2" />
-                <p className="text-sm text-gray-400">Confirmadas</p>
-                <p className="text-3xl font-bold text-blue-400 mt-1">
+                <CheckCircle className="w-5 h-5 text-blue-400 mb-1" />
+                <p className="text-xs text-gray-400">Confirmadas</p>
+                <p className="text-xl font-bold text-blue-400">
                   {selectedActivity.pendientes.filter(t => t.confirmada).length}
                 </p>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-green-500/50 transition-colors">
-            <CardContent className="text-center p-4">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3 text-center">
               <div className="flex flex-col items-center">
-                <Timer className="w-8 h-8 text-green-400 mb-2" />
-                <p className="text-sm text-gray-400">Tiempo total</p>
-                <p className="text-3xl font-bold text-green-400 mt-1">
+                <Timer className="w-5 h-5 text-green-400 mb-1" />
+                <p className="text-xs text-gray-400">Tiempo total</p>
+                <p className="text-xl font-bold text-green-400">
                   {selectedActivity.pendientes.reduce((sum, t) => sum + t.duracionMin, 0)} min
                 </p>
               </div>
@@ -707,40 +694,37 @@ export default function DetallesView({
           </Card>
         </div>
 
-        {/* Tasks Table */}
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Tasks Table Compacta */}
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardHeader className="p-4 pb-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-gray-100">Reporte de Tareas</CardTitle>
-                <CardDescription className="text-gray-400">
-                  Haz clic en una fila para ver detalles completos del reporte
+                <CardTitle className="text-gray-100 text-lg">Tareas del Reporte</CardTitle>
+                <CardDescription className="text-gray-400 text-sm">
+                  Haz clic en una tarea para ver detalles
                 </CardDescription>
               </div>
               
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <div className="relative w-full md:w-56">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-500" />
                 <Input
                   placeholder="Buscar tarea..."
                   value={tareaSearch}
                   onChange={(e) => setTareaSearch(e.target.value)}
-                  className="pl-10 bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 focus:border-purple-500 focus:ring-purple-500"
+                  className="pl-8 bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 h-8 text-sm"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border-none overflow-hidden">
+          <CardContent className="p-4 pt-2">
+            <div className="rounded-lg overflow-hidden">
               <Table>
                 <TableHeader className="bg-[#1a1a1a]">
-                  <TableRow className="hover:bg-gray-800 border-none">
-                    <TableHead className="text-gray-300 font-medium w-12">#</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Tarea</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Estado</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Confirmación</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Duración</TableHead>
-                    <TableHead className="text-gray-300 font-medium">Fecha Creación</TableHead>
-                    <TableHead className="text-gray-300 font-medium text-right">Acciones</TableHead>
+                  <TableRow className="border-none">
+                    <TableHead className="text-gray-300 font-medium text-sm py-2">Tarea</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-2">Estado</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-2">Duración</TableHead>
+                    <TableHead className="text-gray-300 font-medium text-sm py-2 text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -748,89 +732,64 @@ export default function DetallesView({
                     tareasFiltradas.map((tarea, index) => (
                       <TableRow 
                         key={tarea.pendienteId || index} 
-                        className="bg-[#1a1a1a] border-[#141414] hover:bg-[#1f1f1f] cursor-pointer"
+                        className="bg-[#1a1a1a] hover:bg-[#1f1f1f] cursor-pointer"
                         onClick={() => onViewTask(tarea, selectedActivity, selectedUser)}
                       >
-                        <TableCell>
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            tarea.terminada 
-                              ? 'bg-gradient-to-br from-green-500 to-emerald-500 text-white' 
-                              : 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
-                          }`}>
-                            {index + 1}
-                          </div>
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           <div>
-                            <div className="font-medium text-gray-100">{tarea.nombre}</div>
+                            <div className="font-medium text-gray-100 text-sm">{tarea.nombre}</div>
                             {tarea.descripcion && (
-                              <div className="text-sm text-gray-400 line-clamp-1 mt-1">
+                              <div className="text-xs text-gray-400 line-clamp-1 mt-0.5">
                                 {tarea.descripcion}
                               </div>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>
-                          {tarea.terminada ? (
-                            <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Terminada
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-                              <AlertTriangle className="w-3 h-3 mr-1" />
-                              Pendiente
-                            </Badge>
-                          )}
+                        <TableCell className="py-2">
+                          <div className="flex flex-col gap-1">
+                            {tarea.terminada ? (
+                              <Badge className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 w-fit">
+                                <CheckCircle className="w-2.5 h-2.5 mr-1" />
+                                Terminada
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 w-fit">
+                                <AlertTriangle className="w-2.5 h-2.5 mr-1" />
+                                Pendiente
+                              </Badge>
+                            )}
+                            {tarea.confirmada && (
+                              <Badge className="bg-blue-500/20 text-blue-400 text-xs px-2 py-0.5 w-fit">
+                                Confirmada
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>
-                          {tarea.confirmada ? (
-                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Confirmada
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-none text-gray-400">
-                              <XCircle className="w-3 h-3 mr-1" />
-                              Sin confirmar
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           <div className="flex items-center gap-1">
                             <Timer className="w-3 h-3 text-gray-400" />
-                            <span className="text-gray-300">{tarea.duracionMin} min</span>
+                            <span className="text-gray-300 text-sm">{tarea.duracionMin} min</span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div className="text-sm text-gray-300">
-                            {new Date(tarea.fechaCreacion).toLocaleDateString()}
-                          </div>
-                          {tarea.fechaFinTerminada && (
-                            <div className="text-xs text-green-400">
-                              Terminada: {new Date(tarea.fechaFinTerminada).toLocaleDateString()}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="py-2 text-right">
                           <Button
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
                               onViewTask(tarea, selectedActivity, selectedUser);
                             }}
-                            className="bg-[#6841ea] hover:bg-[#5a36d1] text-white"
+                            className="bg-[#6841ea] hover:bg-[#5a36d1] text-white h-7 w-7 p-0"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-gray-400">
+                      <TableCell colSpan={4} className="text-center py-6 text-gray-400 text-sm">
                         {selectedActivity.pendientes.length === 0 
-                          ? "No hay tareas en esta actividad" 
+                          ? "No hay tareas en este reporte" 
                           : "No se encontraron tareas que coincidan con la búsqueda"}
                       </TableCell>
                     </TableRow>
@@ -838,122 +797,89 @@ export default function DetallesView({
                 </TableBody>
               </Table>
             </div>
-
-            {/* Summary Info */}
-            {tareasFiltradas.length > 0 && (
-              <div className="mt-6 flex items-center justify-between text-sm text-gray-400">
-                <div>
-                  Mostrando {tareasFiltradas.length} de {selectedActivity.pendientes.length} tareas
-                  {tareaSearch && (
-                    <span className="ml-2 text-purple-400">
-                      (filtradas)
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500/20"></div>
-                    <span>Terminadas: {tareasFiltradas.filter(t => t.terminada).length}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500/20"></div>
-                    <span>Confirmadas: {tareasFiltradas.filter(t => t.confirmada).length}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  // Vista Detalle de Tarea
+  // Vista Detalle de Tarea COMPACTA
   if (detalleView === 'tarea' && selectedTask && selectedActivity && selectedUser) {
     return (
-      <div className="p-6 space-y-6">
-        {/* Task Header Card */}
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-          <CardContent>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`p-2 rounded-lg ${
+      <div className="p-4 space-y-4">
+        {/* Task Header Card Compacta */}
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`p-1.5 rounded ${
                     selectedTask.terminada 
-                      ? 'bg-gradient-to-br from-green-500/20 to-emerald-500/20' 
-                      : 'bg-gradient-to-br from-amber-500/20 to-orange-500/20'
+                      ? 'bg-green-500/20' 
+                      : 'bg-amber-500/20'
                   }`}>
                     {selectedTask.terminada ? (
-                      <CheckCircle className="w-6 h-6 text-green-400" />
+                      <CheckCircle className="w-4 h-4 text-green-400" />
                     ) : (
-                      <AlertTriangle className="w-6 h-6 text-amber-400" />
+                      <AlertTriangle className="w-4 h-4 text-amber-400" />
                     )}
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-100">{selectedTask.nombre}</h2>
+                  <h2 className="text-lg font-bold text-gray-100 truncate">{selectedTask.nombre}</h2>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
+                    <User className="w-3 h-3" />
                     {selectedUser.nombre}
                   </span>
                   <span className="flex items-center gap-1">
-                    <Folder className="w-4 h-4" />
-                    {selectedActivity.titulo.substring(0, 50)}...
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    {selectedActivity.fecha}
+                    <Folder className="w-3 h-3" />
+                    {selectedActivity.titulo.substring(0, 30)}...
                   </span>
                 </div>
               </div>
               
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 shrink-0">
                 <Button
                   onClick={() => onViewActivity(selectedActivity, selectedUser)}
                   variant="outline"
-                  className="border-none text-gray-300 hover:bg-gray-800 hover:text-white hover:border-purple-500/50"
+                  size="sm"
+                  className="border-none text-gray-300 hover:bg-gray-800 hover:text-white h-8 text-xs"
                 >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Volver a actividad
+                  <ArrowLeft className="w-3 h-3 mr-1" />
+                  Volver
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Task Details Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-            <CardContent>
-              <div className="space-y-4">
+        {/* Task Details Grid Compacta */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3">
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-400 mb-2">Estado Actual</p>
-                  <div className="flex items-center gap-3">
+                  <p className="text-xs font-medium text-gray-400 mb-1.5">Estado</p>
+                  <div className="flex flex-col gap-1.5">
                     {selectedTask.terminada ? (
-                      <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white">
-                        <CheckCircle className="w-4 h-4 mr-2" />
+                      <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs w-fit">
+                        <CheckCircle className="w-3 h-3 mr-1" />
                         Terminada
                       </Badge>
                     ) : (
-                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-                        <AlertTriangle className="w-4 h-4 mr-2" />
+                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs w-fit">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
                         Pendiente
                       </Badge>
                     )}
-                  </div>
-                </div>
-                
-                <div>
-                  <p className="text-sm font-medium text-gray-400 mb-2">Confirmación</p>
-                  <div className="flex items-center gap-3">
                     {selectedTask.confirmada ? (
-                      <Badge className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white">
-                        <CheckCircle className="w-4 h-4 mr-2" />
+                      <Badge className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs w-fit">
+                        <CheckCircle className="w-3 h-3 mr-1" />
                         Confirmada
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="border-none text-gray-400">
-                        <XCircle className="w-4 h-4 mr-2" />
+                      <Badge variant="outline" className="border-none text-gray-400 text-xs w-fit">
+                        <XCircle className="w-3 h-3 mr-1" />
                         Sin confirmar
                       </Badge>
                     )}
@@ -963,107 +889,83 @@ export default function DetallesView({
             </CardContent>
           </Card>
 
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-pink-500/50 transition-colors">
-            <CardContent>
-              <div className="space-y-4">
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardContent className="p-3">
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-400 mb-2">Duración</p>
-                  <div className="flex items-center gap-3">
-                    <Timer className="w-5 h-5 text-pink-400" />
-                    <span className="text-2xl font-bold text-gray-100">{selectedTask.duracionMin} minutos</span>
+                  <p className="text-xs font-medium text-gray-400 mb-1">Duración</p>
+                  <div className="flex items-center gap-2">
+                    <Timer className="w-4 h-4 text-pink-400" />
+                    <span className="text-lg font-bold text-gray-100">{selectedTask.duracionMin} min</span>
                   </div>
                 </div>
                 
                 <div>
-                  <p className="text-sm font-medium text-gray-400 mb-2">Fecha Creación</p>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-gray-400" />
-                    <span className="text-gray-100">{new Date(selectedTask.fechaCreacion).toLocaleDateString()}</span>
+                  <p className="text-xs font-medium text-gray-400 mb-1">Fecha Creación</p>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-100">{new Date(selectedTask.fechaCreacion).toLocaleDateString()}</span>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-blue-500/50 transition-colors">
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-400 mb-2">Última Actualización</p>
-                  <div className="flex items-center gap-3">
-                    <Clock className="w-5 h-5 text-blue-400" />
-                    <span className="text-gray-100">{new Date(selectedActivity.ultimaActualizacion).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                
-                {selectedTask.fechaFinTerminada && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-400 mb-2">Fecha Terminación</p>
-                    <div className="flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-green-400" />
-                      <span className="text-green-400">{new Date(selectedTask.fechaFinTerminada).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Task Description */}
+        {/* Task Description Compacta */}
         {selectedTask.descripcion && (
-          <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-purple-500/50 transition-colors">
-            <CardHeader>
-              <CardTitle className="text-gray-100 flex items-center gap-2">
-                <File className="w-5 h-5" />
-                Explicación Completa
+          <Card className="bg-[#2a2a2a] border-none rounded-lg">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-gray-100 text-sm flex items-center gap-2">
+                <File className="w-4 h-4" />
+                Explicación
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="p-4 bg-[#1a1a1a] rounded-lg border border-none">
-                <p className="text-gray-300 whitespace-pre-wrap">{selectedTask.descripcion}</p>
+            <CardContent className="p-4 pt-0">
+              <div className="p-3 bg-[#1a1a1a] rounded border border-none">
+                <p className="text-gray-300 text-sm whitespace-pre-wrap">{selectedTask.descripcion}</p>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Task Actions */}
-        <Card className="text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm bg-[#2a2a2a] border-none hover:border-pink-500/50 transition-colors">
-          <CardHeader>
-            <CardTitle className="text-gray-100">Gestión del Reporte</CardTitle>
-            <CardDescription className="text-gray-400">
-              Acciones y observaciones sobre este reporte
+        {/* Task Actions Compactas */}
+        <Card className="bg-[#2a2a2a] border-none rounded-lg">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-gray-100 text-sm">Gestión del Reporte</CardTitle>
+            <CardDescription className="text-gray-400 text-xs">
+              Acciones y observaciones
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <CardContent className="p-4 pt-0">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Select value={detalleEstado} onValueChange={(value: any) => setDetalleEstado(value)}>
-                  <SelectTrigger className="bg-gray-800 border-none text-gray-100 focus:border-purple-500 focus:ring-purple-500">
+                  <SelectTrigger className="bg-gray-800 border-none text-gray-100 text-sm h-9">
                     <SelectValue placeholder="Cambiar estado" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#2a2a2a] border-none text-gray-100">
-                    <SelectItem value="pendiente" className="focus:bg-gray-800">
+                    <SelectItem value="pendiente" className="text-sm focus:bg-gray-800">
                       <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
                         <span>Pendiente</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="en_progreso" className="focus:bg-gray-800">
+                    <SelectItem value="en_progreso" className="text-sm focus:bg-gray-800">
                       <div className="flex items-center gap-2">
-                        <Play className="w-4 h-4 text-blue-400" />
+                        <Play className="w-3.5 h-3.5 text-blue-400" />
                         <span>En progreso</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="terminada" className="focus:bg-gray-800">
+                    <SelectItem value="terminada" className="text-sm focus:bg-gray-800">
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-400" />
+                        <CheckCircle className="w-3.5 h-3.5 text-green-400" />
                         <span>Terminada</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="bloqueada" className="focus:bg-gray-800">
+                    <SelectItem value="bloqueada" className="text-sm focus:bg-gray-800">
                       <div className="flex items-center gap-2">
-                        <Pause className="w-4 h-4 text-red-400" />
+                        <Pause className="w-3.5 h-3.5 text-red-400" />
                         <span>Bloqueada</span>
                       </div>
                     </SelectItem>
@@ -1072,28 +974,28 @@ export default function DetallesView({
                 
                 <Button
                   onClick={cambiarEstadoTarea}
-                  className="bg-[#6841ea] hover:bg-[#5a36d1] text-white"
+                  className="bg-[#6841ea] hover:bg-[#5a36d1] text-white text-sm h-9"
                 >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Actualizar estado
+                  <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                  Actualizar
                 </Button>
               </div>
               
               <div className="space-y-2">
                 <Textarea
-                  placeholder="Agregar observaciones, detalles técnicos, problemas encontrados..."
+                  placeholder="Agregar observaciones..."
                   value={detalleNotas}
                   onChange={(e) => setDetalleNotas(e.target.value)}
-                  className="bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 min-h-[100px] focus:border-purple-500 focus:ring-purple-500"
+                  className="bg-gray-800 border-none text-gray-100 placeholder:text-gray-500 text-sm min-h-[80px]"
                 />
                 <div className="flex justify-end">
                   <Button
                     onClick={agregarNotaDetalle}
                     disabled={!detalleNotas.trim()}
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white text-sm h-8"
                   >
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Guardar observación
+                    <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                    Guardar
                   </Button>
                 </div>
               </div>

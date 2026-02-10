@@ -138,6 +138,8 @@ export async function sendPendienteValidarYGuardar(data: {
   nombrePendiente: string;
   idPendiente: string;
   explicacion: string;
+  userEmail?: string;
+
 }) {
   try {
     const response = await fetch(
@@ -152,6 +154,7 @@ export async function sendPendienteValidarYGuardar(data: {
           nombrePendiente: data.nombrePendiente,
           idPendiente: data.idPendiente,
           explicacion: data.explicacion,
+          userEmail: data.userEmail, // 🔹 Enviar también como userEmail
         }),
       },
     );

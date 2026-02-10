@@ -1,6 +1,13 @@
 import React from "react";
 import Image from "next/image";
-import { PictureInPicture, Minimize2, Moon, Sun, LogOut } from "lucide-react";
+import {
+  PictureInPicture,
+  Minimize2,
+  Moon,
+  Sun,
+  LogOut,
+  BarChart3, // Icono para reportes
+} from "lucide-react";
 import { SpeedControlHeader } from "./voice-controls";
 import { HeaderProps } from "@/lib/types";
 
@@ -17,7 +24,11 @@ export const ChatHeader: React.FC<HeaderProps> = ({
   openPiPWindow,
   closePiPWindow,
   setShowLogoutDialog,
+  onViewReports, // 🔹 Nueva prop
 }) => {
+  // 🔹 Verificar si es el administrador John S
+  const isAdminJohn = colaborador.email === "jjohn@pprin.com";
+
   // RENDERIZADO PARA MODO VENTANA FLOTANTE (PiP)
   if (isInPiPWindow) {
     return (
@@ -94,6 +105,11 @@ export const ChatHeader: React.FC<HeaderProps> = ({
                   className={`text-sm ${theme === "dark" ? "text-gray-400" : "text-gray-600"}`}
                 >
                   {displayName} • {colaborador.email}
+                  {isAdminJohn && (
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded-full">
+                      Admin
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -106,9 +122,30 @@ export const ChatHeader: React.FC<HeaderProps> = ({
                 theme={theme}
               />
 
+              {/* 🔹 BOTÓN DE REPORTES - SOLO PARA ADMIN JOHN */}
+              {isAdminJohn && (
+                // En el botón de reportes, justo antes del return
+                <button
+                  onClick={() => {
+                    console.log("🔍 Botón Reportes clickeado");
+                    console.log("📧 Email del colaborador:", colaborador.email);
+                    console.log("👤 Display Name:", displayName);
+                    console.log("🔄 onViewReports existe?:", !!onViewReports);
+                    if (onViewReports) {
+                      onViewReports();
+                    } else {
+                      console.error("❌ onViewReports no está definida");
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${theme === "dark" ? "bg-[#2a2a2a] text-gray-300 hover:bg-[#353535]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Reportes
+                </button>
+              )}
+
               <button
                 onClick={isPiPMode ? closePiPWindow : openPiPWindow}
-                disabled={isInPiPWindow}
                 className={`w-9 h-9 rounded-full flex items-center justify-center ${
                   isPiPMode
                     ? "bg-red-600"

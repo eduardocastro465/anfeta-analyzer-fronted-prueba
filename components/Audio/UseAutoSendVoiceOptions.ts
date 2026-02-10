@@ -37,12 +37,19 @@ interface UseAutoSendVoiceOptions {
    * Función para iniciar la grabación del MediaRecorder
    */
   startRecording: () => Promise<MediaStream>;
+
+  /**
+   * Habilitar transcripción en tiempo real (experimental)
+   * @default false
+   */
+  enableRealtimeTranscription?: boolean;
 }
 
 interface UseAutoSendVoiceReturn {
   isRecording: boolean;
   isTranscribing: boolean;
   audioLevel: number;
+  transcript: string;
   startVoiceRecording: () => Promise<void>;
   cancelVoiceRecording: () => Promise<void>;
   cleanup: () => void;
@@ -56,11 +63,13 @@ export function useAutoSendVoice({
   transcriptionService,
   stopRecording,
   startRecording,
+  enableRealtimeTranscription = false,
 }: UseAutoSendVoiceOptions): UseAutoSendVoiceReturn {
   // ==================== ESTADOS ====================
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [transcript, setTranscript] = useState("");
 
   // ==================== REFS ====================
   const isRecordingRef = useRef(false);
@@ -71,11 +80,76 @@ export function useAutoSendVoice({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   // ==================== SINCRONIZACIÓN STATE <-> REF ====================
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
+
+  // ==================== RECONOCIMIENTO DE VOZ EN TIEMPO REAL ====================
+  const startRealtimeRecognition = useCallback(() => {
+    if (!enableRealtimeTranscription) return;
+    if (typeof window === "undefined") return;
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.warn("Speech Recognition no soportado en este navegador");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "es-ES";
+
+      recognition.onresult = (event: any) => {
+        let interimTranscript = "";
+        let finalTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcriptPart = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcriptPart + " ";
+          } else {
+            interimTranscript += transcriptPart;
+          }
+        }
+
+        // Actualizar transcript en tiempo real
+        setTranscript((prev) => {
+          const newTranscript = (prev + finalTranscript).trim();
+          return (
+            newTranscript + (interimTranscript ? " " + interimTranscript : "")
+          );
+        });
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Error en reconocimiento de voz:", event.error);
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (error) {
+      console.error("Error al iniciar reconocimiento:", error);
+    }
+  }, [enableRealtimeTranscription]);
+
+  const stopRealtimeRecognition = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      } catch (error) {
+        console.error("Error al detener reconocimiento:", error);
+      }
+    }
+  }, []);
 
   // ==================== PROCESAMIENTO Y ENVÍO ====================
   const processAndSendAudio = useCallback(async () => {
@@ -88,6 +162,9 @@ export function useAutoSendVoice({
     isRecordingRef.current = false;
     setIsTranscribing(true);
     setAudioLevel(0);
+
+    // Detener reconocimiento en tiempo real
+    stopRealtimeRecognition();
 
     // Detener detección de audio
     if (animationFrameRef.current) {
@@ -109,13 +186,20 @@ export function useAutoSendVoice({
 
       if (wasCancelledRef.current) {
         wasCancelledRef.current = false;
+        setTranscript("");
         return;
       }
 
-      const transcript = await transcriptionService(audioBlob);
+      // Si no hay transcripción en tiempo real, usar el servicio de transcripción
+      let finalTranscript = transcript.trim();
 
-      if (transcript && transcript.trim().length > 0) {
-        onTranscriptionComplete?.(transcript.trim());
+      if (!enableRealtimeTranscription || !finalTranscript) {
+        finalTranscript = await transcriptionService(audioBlob);
+      }
+
+      if (finalTranscript && finalTranscript.length > 0) {
+        setTranscript(finalTranscript);
+        onTranscriptionComplete?.(finalTranscript);
       } else {
         onError?.(new Error("La transcripción está vacía"));
       }
@@ -126,6 +210,8 @@ export function useAutoSendVoice({
     } finally {
       setIsTranscribing(false);
       isProcessingRef.current = false;
+      // Limpiar transcript después de enviar
+      setTimeout(() => setTranscript(""), 500);
     }
   }, [
     silenceThreshold,
@@ -133,6 +219,9 @@ export function useAutoSendVoice({
     transcriptionService,
     onTranscriptionComplete,
     onError,
+    transcript,
+    enableRealtimeTranscription,
+    stopRealtimeRecognition,
   ]);
 
   // ==================== TIMER DE SILENCIO ====================
@@ -166,20 +255,6 @@ export function useAutoSendVoice({
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         let frameCount = 0;
 
-        // Test inmediato del audio
-        const testAudioImmediate = () => {
-          analyser.getByteFrequencyData(dataArray);
-          const sum = dataArray.reduce((a, b) => a + b, 0);
-          const average = sum / dataArray.length;
-
-          if (average === 0) {
-          } else {
-          }
-        };
-
-        setTimeout(testAudioImmediate, 100);
-        setTimeout(testAudioImmediate, 500);
-
         // Función de detección continua
         const checkAudioLevel = () => {
           if (!isRecordingRef.current) {
@@ -199,13 +274,7 @@ export function useAutoSendVoice({
 
           if (average > speechThreshold) {
             // 🎤 VOZ DETECTADA
-            if (frameCount % 30 === 0) {
-            }
             resetSilenceTimer();
-          } else {
-            // 🔇 SILENCIO
-            if (frameCount % 60 === 0) {
-            }
           }
 
           animationFrameRef.current = requestAnimationFrame(checkAudioLevel);
@@ -227,6 +296,7 @@ export function useAutoSendVoice({
   // ==================== INICIAR GRABACIÓN ====================
   const startVoiceRecording = useCallback(async () => {
     wasCancelledRef.current = false;
+    setTranscript(""); // Limpiar transcript anterior
 
     // Evitar inicio si ya se está procesando
     if (isTranscribing || isProcessingRef.current) {
@@ -239,8 +309,6 @@ export function useAutoSendVoice({
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    // Iniciar nueva grabación
-
     try {
       const stream = await startRecording();
 
@@ -248,6 +316,7 @@ export function useAutoSendVoice({
       isRecordingRef.current = true;
 
       startAudioLevelDetection(stream);
+      startRealtimeRecognition();
     } catch (error) {
       let errorMessage = "No se pudo acceder al micrófono";
 
@@ -268,18 +337,22 @@ export function useAutoSendVoice({
       setIsRecording(false);
       isRecordingRef.current = false;
       setAudioLevel(0);
+      setTranscript("");
     }
   }, [
     isTranscribing,
     isRecording,
     startRecording,
     startAudioLevelDetection,
+    startRealtimeRecognition,
     onError,
   ]);
 
   // ==================== CANCELAR GRABACIÓN ====================
   const cancelVoiceRecording = useCallback(async () => {
     wasCancelledRef.current = true;
+
+    stopRealtimeRecognition();
 
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
@@ -302,10 +375,13 @@ export function useAutoSendVoice({
     setAudioLevel(0);
     setIsRecording(false);
     isRecordingRef.current = false;
-  }, [stopRecording]);
+    setTranscript("");
+  }, [stopRecording, stopRealtimeRecognition]);
 
   // ==================== LIMPIEZA ====================
   const cleanup = useCallback(() => {
+    stopRealtimeRecognition();
+
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current);
     }
@@ -321,7 +397,9 @@ export function useAutoSendVoice({
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((track) => track.stop());
     }
-  }, []);
+
+    setTranscript("");
+  }, [stopRealtimeRecognition]);
 
   // ==================== EFECTO DE MONTAJE/DESMONTAJE ====================
   useEffect(() => {
@@ -330,13 +408,11 @@ export function useAutoSendVoice({
     };
   }, [cleanup]);
 
-  // ==================== LOG DE NIVEL DE AUDIO ====================
-  useEffect(() => {}, [audioLevel]);
-
   return {
     isRecording,
     isTranscribing,
     audioLevel,
+    transcript,
     startVoiceRecording,
     cancelVoiceRecording,
     cleanup,

@@ -1,3 +1,5 @@
+"use client";
+
 import type { Message } from "@/lib/types";
 import { Bot, User, Mic, Sparkles } from "lucide-react";
 import { useMemo } from "react";
@@ -14,10 +16,9 @@ export function MessageItem({
   onVoiceMessageClick,
 }: MessageItemProps) {
   // ========== VALORES COMPUTADOS ==========
-
   const messageStyles = useMemo(() => {
     const baseStyles =
-      "rounded-xl px-3.5 py-2.5 min-w-[140px]  backdrop-blur-sm transition-all duration-300";
+      "rounded-xl px-3.5 py-2.5 min-w-[140px] backdrop-blur-sm transition-all duration-300";
 
     switch (message.type) {
       case "user":
@@ -80,7 +81,6 @@ export function MessageItem({
   );
 
   // ========== RENDER ==========
-
   return (
     <div
       className={`flex animate-in slide-in-from-bottom-3 fade-in duration-500 ${
@@ -110,35 +110,32 @@ export function MessageItem({
           </div>
         )}
 
+        {/* CONTENEDOR PRINCIPAL DEL MENSAJE */}
         <div className={messageStyles} onClick={handleClick}>
-          {/* Contenido con icono decorativo para bot/voice */}
-          {message.type !== "user" && message.type !== "system" && (
-            <div className="flex items-start gap-2">
-              {message.type === "bot" && (
-                <Sparkles className="w-3.5 h-3.5 text-[#6841ea] mt-0.5 shrink-0 animate-pulse" />
+          {/* Contenido del mensaje */}
+          <div className="flex items-start gap-2">
+            {/* Icono decorativo solo para bot */}
+            {message.type === "bot" && (
+              <Sparkles className="w-3.5 h-3.5 text-[#6841ea] mt-0.5 shrink-0 animate-pulse" />
+            )}
+            
+            {/* Contenido principal */}
+            <div className="flex-1 min-w-0">
+              <MessageContent content={message.content} theme={theme} />
+              
+              {/* Indicador de voz reciente */}
+              {isRecentVoice && <VoiceIndicator />}
+              
+              {/* Timestamp */}
+              {message.type !== "system" && (
+                <Timestamp
+                  timestamp={message.timestamp}
+                  isUser={message.type === "user"}
+                  theme={theme}
+                />
               )}
-              <div className="flex-1 min-w-0">
-                <MessageContent content={message.content} theme={theme} />
-              </div>
             </div>
-          )}
-
-          {/* Contenido sin icono para user/system */}
-          {(message.type === "user" || message.type === "system") && (
-            <MessageContent content={message.content} theme={theme} />
-          )}
-
-          {/* Indicador de voz reciente */}
-          {isRecentVoice && <VoiceIndicator />}
-
-          {/* Timestamp */}
-          {message.type !== "system" && (
-            <Timestamp
-              timestamp={message.timestamp}
-              isUser={message.type === "user"}
-              theme={theme}
-            />
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -146,7 +143,6 @@ export function MessageItem({
 }
 
 // ========== COMPONENTES AUXILIARES ==========
-
 interface MessageContentProps {
   content: string | React.ReactNode;
   theme: "light" | "dark";
@@ -164,8 +160,6 @@ function MessageContent({ content, theme }: MessageContentProps) {
       </p>
     );
   }
-
-  // Renderizar JSX directamente
   return <div className="text-sm font-medium">{content}</div>;
 }
 
@@ -213,8 +207,8 @@ function Timestamp({ timestamp, isUser, theme }: TimestampProps) {
         isUser
           ? "text-white/70 text-right"
           : theme === "dark"
-            ? "text-gray-500"
-            : "text-gray-400"
+          ? "text-gray-500"
+          : "text-gray-400"
       }`}
     >
       {timeString}

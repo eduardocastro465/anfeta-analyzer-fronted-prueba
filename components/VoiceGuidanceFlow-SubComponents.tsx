@@ -204,6 +204,7 @@ export const ActivityPresentationStep: React.FC<{
   currentActivity: Activity;
   currentActivityIndex: number;
   totalActivities: number;
+  isPaused: boolean;
   theme: string;
   isSpeaking: boolean;
   speakTaskByIndices: (activityIndex: number, taskIndex: number) => void;
@@ -213,6 +214,7 @@ export const ActivityPresentationStep: React.FC<{
   totalActivities,
   theme,
   isSpeaking,
+  isPaused,
   speakTaskByIndices,
 }) => (
   <div className="space-y-4">
@@ -297,6 +299,7 @@ export const TaskPresentationStep: React.FC<{
   theme: string;
   voiceStep: string;
   isSpeaking: boolean;
+  isPaused: boolean;
   startTaskExplanation: () => void;
   skipTask: () => void;
 }> = ({
@@ -307,6 +310,7 @@ export const TaskPresentationStep: React.FC<{
   theme,
   voiceStep,
   isSpeaking,
+  isPaused,
   startTaskExplanation,
   skipTask,
 }) => (
@@ -423,8 +427,6 @@ export const TaskPresentationStep: React.FC<{
 // ============================================
 // LISTENING EXPLANATION STEP
 // ============================================
-// En VoiceGuidanceFlow-SubComponents.tsx
-
 export const ListeningExplanationStep: React.FC<{
   currentListeningFor: string;
   retryCount: number;
@@ -437,6 +439,7 @@ export const ListeningExplanationStep: React.FC<{
   setVoiceStep: (step: any) => void;
   processVoiceExplanation: (transcript: string) => void;
   setCurrentListeningFor: (text: string) => void;
+  isPaused: boolean;
 }> = ({
   currentListeningFor,
   retryCount,
@@ -449,9 +452,9 @@ export const ListeningExplanationStep: React.FC<{
   setVoiceStep,
   processVoiceExplanation,
   setCurrentListeningFor,
+  isPaused,
 }) => {
   const [isValidating, setIsValidating] = React.useState(false);
-
   const [countdown, setCountdown] = React.useState<number | null>(null);
 
   React.useEffect(() => {
@@ -474,14 +477,14 @@ export const ListeningExplanationStep: React.FC<{
       silenceTimer = setTimeout(() => {
         setCountdown(null);
 
-        // ✅ DETENER RECONOCIMIENTO Y PROCESAR
+        // DETENER RECONOCIMIENTO Y PROCESAR
         if (recognitionRef.current) {
           recognitionRef.current.stop();
         }
         setIsRecording(false);
         setIsListening(false);
 
-        // ✅ LLAMAR DIRECTAMENTE A processVoiceExplanation
+        // LLAMAR DIRECTAMENTE A processVoiceExplanation
         processVoiceExplanation(voiceTranscript);
       }, 3000);
     }
@@ -530,7 +533,7 @@ export const ListeningExplanationStep: React.FC<{
           </div>
         )}
 
-        {/* ✅ Countdown flotante */}
+        {/* Countdown flotante debajo del micrófono */}
         {countdown !== null && !isValidating && (
           <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
             <div className="bg-[#6841ea] text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
@@ -574,6 +577,64 @@ export const ListeningExplanationStep: React.FC<{
             : "Por favor, explica cómo resolverás esta tarea."}
       </p>
 
+      {/* INDICADOR DE GRABACIÓN ACTIVA - Cuando no hay transcript todavía */}
+      {!voiceTranscript && !isValidating && (
+        <div className={`p-4 rounded-lg border-2 border-dashed ${
+          theme === "dark" 
+            ? "border-red-500/30 bg-red-900/10" 
+            : "border-red-300 bg-red-50"
+        }`}>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="flex gap-1">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="w-1 bg-red-500 rounded-full animate-pulse"
+                  style={{
+                    height: `${12 + (i % 3) * 8}px`,
+                    animationDelay: `${i * 0.15}s`,
+                    animationDuration: '0.8s'
+                  }}
+                />
+              ))}
+            </div>
+            <span className="text-sm font-medium text-red-500">
+              🎤 Grabando... Habla ahora
+            </span>
+          </div>
+          <p className="text-xs text-center text-gray-500">
+            Tu voz se está capturando. El texto aparecerá aquí en tiempo real.
+          </p>
+        </div>
+      )}
+
+      {/* CONTADOR DE SILENCIO GRANDE Y PROMINENTE */}
+      {countdown !== null && !isValidating && voiceTranscript && (
+        <div className={`p-4 rounded-lg border-2 ${
+          theme === "dark"
+            ? "border-[#6841ea] bg-[#6841ea]/10"
+            : "border-[#6841ea] bg-[#6841ea]/5"
+        }`}>
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <Clock className="w-5 h-5 text-[#6841ea] animate-pulse" />
+            <span className="text-lg font-bold text-[#6841ea]">
+              Auto-envío en {countdown} segundo{countdown !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <p className="text-xs text-center text-gray-500">
+            Detecté silencio. Si no hablas más, enviaré automáticamente tu explicación.
+          </p>
+          {/* Barra de progreso visual */}
+          <div className="mt-3 w-full h-2 bg-gray-300 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-[#6841ea] transition-all duration-1000 ease-linear"
+              style={{ width: `${(countdown / 3) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* MOSTRAR TRANSCRIPT cuando existe */}
       {voiceTranscript && (
         <div
           className={`p-3 rounded ${
@@ -585,7 +646,7 @@ export const ListeningExplanationStep: React.FC<{
             {isValidating
               ? "Validando con IA..."
               : countdown !== null
-                ? `Se enviará automáticamente en ${countdown} segundo${countdown !== 1 ? "s" : ""}...`
+                ? "⏱️ Timer activo - Continúa hablando para cancelar el auto-envío"
                 : "Continúa hablando o haz clic en un botón"}
           </p>
         </div>
@@ -630,12 +691,14 @@ export const ConfirmationStep: React.FC<{
   voiceConfirmationText: string;
   theme: string;
   isSpeaking: boolean;
+  isPaused: boolean;
   retryExplanation: () => void;
 }> = ({
   currentTask,
   voiceConfirmationText,
   theme,
   isSpeaking,
+  isPaused,
   retryExplanation,
 }) => (
   <div className="space-y-4">
@@ -704,6 +767,7 @@ export const SummaryStep: React.FC<{
   totalTasks: number;
   theme: string;
   isSpeaking: boolean;
+  isPaused: boolean;
   cancelVoiceMode: () => void;
   onEditTask: (activityIndex: number, taskIndex: number) => void;
   finishVoiceMode: () => void;
@@ -713,7 +777,9 @@ export const SummaryStep: React.FC<{
   totalTasks,
   theme,
   isSpeaking,
+  isPaused,
   cancelVoiceMode,
+  onEditTask,
   finishVoiceMode,
 }) => (
   <div className="space-y-4">
@@ -818,7 +884,7 @@ export const SummaryStep: React.FC<{
         className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4]"
         disabled={isSpeaking}
       >
-        Comenzar jornada
+        enviar y comenzar jornada
       </Button>
     </div>
   </div>

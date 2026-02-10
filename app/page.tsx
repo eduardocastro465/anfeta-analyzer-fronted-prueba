@@ -59,6 +59,12 @@ export default function Home() {
     }
   };
 
+  // 🔹 Función para navegar a reportes
+  const handleViewReports = () => {
+    // Redirige a la página de reportes (ColaboradoresView)
+    window.location.href = "/reporte-del-dia";
+  };
+
   // 🔹 Loader
   if (isLoading) {
     return (
@@ -79,6 +85,7 @@ export default function Home() {
       colaborador={currentColaborador}
       actividades={userActividades}
       onLogout={handleLogout}
+      onViewReports={handleViewReports} // 🔹 Pasa la función al ChatContainer
     />
   );
 }

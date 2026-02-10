@@ -84,19 +84,17 @@ export function ChatBot({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pipWindowRef = useRef<Window | null>(null);
-  const explanationProcessedRef = useRef<boolean>(false);
   const assistantAnalysisRef = useRef<AssistantAnalysis | null>(null);
   const initializationRef = useRef(false);
   const fetchingAnalysisRef = useRef(false);
-  const autoSendTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastTranscriptRef = useRef<string>("");
+  const welcomeSentRef = useRef(false);
 
   // ==================== CONSTANTES ====================
   const displayName = getDisplayName(colaborador);
   const router = useRouter();
   const { toast } = useToast();
 
-  // ==================== ESTADOS: CHAT PRINCIPAL ====================
+  // ==================== ESTADOS PRINCIPALES ====================
   const [step, setStep] = useState<ChatStep>("welcome");
   const [userInput, setUserInput] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -105,12 +103,12 @@ export function ChatBot({
     useState<AssistantAnalysis | null>(null);
   const [isLoadingIA, setIsLoadingIA] = useState(false);
 
-  // ==================== ESTADOS: DIÁLOGOS Y MODALS ====================
+  // ==================== DIÁLOGOS Y MODALS ====================
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [mostrarModalReporte, setMostrarModalReporte] = useState(false);
 
-  // ==================== ESTADOS: SIDEBAR ====================
+  // ==================== SIDEBAR ====================
   const [sidebarCargado, setSidebarCargado] = useState(false);
   const [sidebarCargando, setSidebarCargando] = useState(true);
   const [data, setData] = useState<ConversacionSidebar[]>([]);
@@ -124,20 +122,15 @@ export function ChatBot({
   >([]);
   const [guardandoReporte, setGuardandoReporte] = useState(false);
 
-  // ==================== ESTADOS: MODAL VOZ REPORTE ====================
+  // ==================== MODAL VOZ REPORTE ====================
   const [indicePendienteActual, setIndicePendienteActual] = useState(0);
   const [pasoModalVoz, setPasoModalVoz] = useState<
     "esperando" | "escuchando" | "procesando"
   >("esperando");
-  const [isUserEditing, setIsUserEditing] = useState(false);
 
   // ==================== ESTADOS: HORARIOS REPORTE ====================
   const [horaInicioReporte] = useState("4:30 PM");
   const [horaFinReporte] = useState("11:59 PM");
-
-  // ==================== ESTADOS: PiP ====================
-  const [isPiPMode, setIsPiPMode] = useState(false);
-  const [isInPiPWindow, setIsInPiPWindow] = useState(false);
 
   // ==================== ESTADOS: TEMA ====================
   const [internalTheme, setInternalTheme] = useState<"light" | "dark">("dark");
@@ -161,10 +154,21 @@ export function ChatBot({
   // ==================== AUDIO RECORDER ====================
   const audioRecorder = useAudioRecorder();
 
+  // ==================== PiP ====================
+  const [isPiPMode, setIsPiPMode] = useState(false);
+  const [isInPiPWindow, setIsInPiPWindow] = useState(false);
+
+  // ==================== ✅ ESTADOS PARA TAREAS SELECCIONADAS ====================
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [filteredActivitiesForVoice, setFilteredActivitiesForVoice] = useState<
+    any[]
+  >([]);
+
   // ==================== VALORES COMPUTADOS ====================
   const canUserType =
     step !== "loading-analysis" && step !== "error" && !voiceMode.voiceMode;
 
+  // ==================== ACTIVIDADES CON TAREAS ====================
   const activitiesWithTasks = useMemo(() => {
     if (!assistantAnalysis?.data?.revisionesPorActividad) {
       return [];
@@ -176,6 +180,7 @@ export function ChatBot({
         actividadId: actividad.actividadId,
         actividadTitulo: actividad.actividadTitulo,
         actividadHorario: actividad.actividadHorario,
+        colaboradores: actividad.colaboradores || [],
         tareas: actividad.tareasConTiempo.map((tarea) => ({
           ...tarea,
           actividadId: actividad.actividadId,
@@ -184,7 +189,7 @@ export function ChatBot({
       }));
   }, [assistantAnalysis]);
 
-  // ==================== FUNCIONES AUXILIARES (DECLARADAS ANTES DE LOS HOOKS) ====================
+  // ==================== FUNCIONES AUXILIARES ====================
   const addMessage = (
     type: Message["type"],
     content: string | React.ReactNode,
@@ -226,22 +231,27 @@ export function ChatBot({
     addMessage(type, content, undefined, isWide);
   };
 
-  // ==================== FUNCIONES: MODO VOZ (ANTES DE LOS HOOKS) ====================
+  // ==================== FUNCIONES: MODO VOZ - NAVEGACIÓN ====================
   const speakActivityByIndex = (activityIndex: number) => {
-    if (activityIndex >= activitiesWithTasks.length) {
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
+    if (activityIndex >= activitiesToUse.length) {
       voiceMode.setVoiceStep("summary");
       voiceMode.setExpectedInputType("confirmation");
 
       setTimeout(() => {
         speakText(
-          "¡Perfecto! Has explicado todas las tareas. presiona el boton de comenzar para iniciar tu jornada para comenzar a trabajar.",
+          "¡Perfecto! Has explicado todas las tareas. Presiona el botón de comenzar para iniciar tu jornada.",
         );
       }, 500);
       return;
     }
 
-    const activity = activitiesWithTasks[activityIndex];
-    const activityText = `Actividad ${activityIndex + 1} de ${activitiesWithTasks.length}: ${activity.actividadTitulo}. Tiene ${activity.tareas.length} tarea${activity.tareas.length !== 1 ? "s" : ""}.`;
+    const activity = activitiesToUse[activityIndex];
+    const activityText = `Actividad ${activityIndex + 1} de ${activitiesToUse.length}: ${activity.actividadTitulo}. Tiene ${activity.tareas.length} tarea${activity.tareas.length !== 1 ? "s" : ""}.`;
 
     voiceMode.setVoiceStep("activity-presentation");
     voiceMode.setExpectedInputType("none");
@@ -259,7 +269,12 @@ export function ChatBot({
   };
 
   const speakTaskByIndices = (activityIndex: number, taskIndex: number) => {
-    if (activityIndex >= activitiesWithTasks.length) {
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
+    if (activityIndex >= activitiesToUse.length) {
       voiceMode.setVoiceStep("summary");
       voiceMode.setExpectedInputType("confirmation");
 
@@ -271,7 +286,7 @@ export function ChatBot({
       return;
     }
 
-    const activity = activitiesWithTasks[activityIndex];
+    const activity = activitiesToUse[activityIndex];
 
     if (taskIndex >= activity.tareas.length) {
       const nextActivityIndex = activityIndex + 1;
@@ -373,8 +388,10 @@ export function ChatBot({
     transcriptionService: transcribirAudioCliente,
     stopRecording: audioRecorder.stopRecording,
     startRecording: audioRecorder.startRecording,
+
     silenceThreshold: 3000,
     speechThreshold: 10,
+    enableRealtimeTranscription: true,
     onTranscriptionComplete: async (transcript) => {
       console.log("✅ Explicación completada automáticamente:", transcript);
 
@@ -390,14 +407,19 @@ export function ChatBot({
         return;
       }
 
+      const activitiesToUse =
+        filteredActivitiesForVoice.length > 0
+          ? filteredActivitiesForVoice
+          : activitiesWithTasks;
+
       const currentTask = getCurrentTask(
         voiceMode.currentActivityIndex,
         voiceMode.currentTaskIndex,
-        activitiesWithTasks,
+        activitiesToUse,
       );
       const currentActivity = getCurrentActivity(
         voiceMode.currentActivityIndex,
-        activitiesWithTasks,
+        activitiesToUse,
       );
 
       if (!currentTask || !currentActivity) {
@@ -452,7 +474,7 @@ export function ChatBot({
               voiceMode.setCurrentTaskIndex(0);
               voiceMode.setRetryCount(0);
 
-              if (nextActivityIndex < activitiesWithTasks.length) {
+              if (nextActivityIndex < activitiesToUse.length) {
                 speakActivityByIndex(nextActivityIndex);
               } else {
                 voiceMode.setVoiceStep("summary");
@@ -513,7 +535,121 @@ export function ChatBot({
     cancelVoiceRecording,
   } = autoSendVoiceChat;
 
-  // ==================== EFECTOS ====================
+  // ==================== ✅ FUNCIÓN PARA INICIAR MODO VOZ CON TAREAS SELECCIONADAS ====================
+  const handleStartVoiceModeWithTasks = (taskIds: string[]) => {
+    console.log(
+      "========== INICIANDO MODO VOZ CON TAREAS SELECCIONADAS ==========",
+    );
+    console.log("🎯 Tareas seleccionadas:", taskIds);
+
+    if (!taskIds || taskIds.length === 0) {
+      console.warn("❌ No hay tareas seleccionadas");
+      speakText("No hay tareas seleccionadas para explicar.");
+      return;
+    }
+
+    const analysis = assistantAnalysisRef.current;
+    if (!analysis) {
+      console.log("❌ No hay analysis");
+      speakText("No hay actividades para explicar.");
+      return;
+    }
+
+    // Filtrar actividades que contengan las tareas seleccionadas
+    const filteredActivities = analysis.data.revisionesPorActividad
+      .map((actividad) => {
+        const tareasFiltradas = actividad.tareasConTiempo
+          .filter((tarea) => taskIds.includes(tarea.id))
+          .map((tarea) => ({
+            ...tarea,
+            actividadId: actividad.actividadId,
+            actividadTitulo: actividad.actividadTitulo,
+          }));
+
+        if (tareasFiltradas.length === 0) return null;
+
+        return {
+          actividadId: actividad.actividadId,
+          actividadTitulo: actividad.actividadTitulo,
+          actividadHorario: actividad.actividadHorario,
+          colaboradores: actividad.colaboradores || [],
+          tareas: tareasFiltradas,
+        };
+      })
+      .filter((act): act is any => act !== null);
+
+    console.log("✅ Actividades filtradas:", filteredActivities);
+
+    if (filteredActivities.length === 0) {
+      console.warn(
+        "⚠️ No se encontraron actividades con las tareas seleccionadas",
+      );
+      speakText("No se encontraron actividades con las tareas seleccionadas.");
+      return;
+    }
+
+    // Guardar en estado
+    setSelectedTaskIds(taskIds);
+    setFilteredActivitiesForVoice(filteredActivities);
+
+    // Configurar modo voz
+    voiceMode.setVoiceMode(true);
+    voiceMode.setVoiceStep("confirm-start");
+    voiceMode.setExpectedInputType("confirmation");
+    voiceMode.setCurrentActivityIndex(0);
+    voiceMode.setCurrentTaskIndex(0);
+    voiceMode.setTaskExplanations([]);
+
+    const mensaje = `Vamos a explicar ${taskIds.length} tarea${taskIds.length !== 1 ? "s" : ""} seleccionada${taskIds.length !== 1 ? "s" : ""} en ${filteredActivities.length} actividad${filteredActivities.length !== 1 ? "es" : ""}. ¿Listo para comenzar?`;
+    speakText(mensaje);
+  };
+
+  // ==================== FUNCIÓN PARA INICIAR MODO VOZ NORMAL ====================
+  const handleStartVoiceMode = () => {
+    const analysis = assistantAnalysisRef.current;
+    if (!analysis) {
+      speakText("No hay actividades para explicar.");
+      return;
+    }
+
+    const activitiesWithTasksLocal = analysis.data.revisionesPorActividad
+      .filter(
+        (actividad) =>
+          actividad.tareasConTiempo && actividad.tareasConTiempo.length > 0,
+      )
+      .map((actividad) => ({
+        actividadId: actividad.actividadId,
+        actividadTitulo: actividad.actividadTitulo,
+        actividadHorario: actividad.actividadHorario,
+        colaboradores: actividad.colaboradores || [],
+        tareas: actividad.tareasConTiempo.map((tarea) => ({
+          ...tarea,
+          actividadId: actividad.actividadId,
+          actividadTitulo: actividad.actividadTitulo,
+        })),
+      }));
+
+    if (activitiesWithTasksLocal.length === 0) {
+      speakText("No hay tareas con tiempo asignado para explicar.");
+      return;
+    }
+
+    // Limpiar filtros previos
+    setSelectedTaskIds([]);
+    setFilteredActivitiesForVoice([]);
+
+    voiceMode.setVoiceMode(true);
+    voiceMode.setVoiceStep("confirm-start");
+    voiceMode.setExpectedInputType("confirmation");
+    voiceMode.setCurrentActivityIndex(0);
+    voiceMode.setCurrentTaskIndex(0);
+    voiceMode.setTaskExplanations([]);
+
+    const mensaje = `Vamos a explicar ${activitiesWithTasksLocal.length} actividad${activitiesWithTasksLocal.length !== 1 ? "es" : ""} con tareas programadas. ¿Listo para comenzar?`;
+    speakText(mensaje);
+  };
+
+  // ==================== EFECTO: INICIALIZACIÓN ====================
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.classList.add("dark");
@@ -532,9 +668,6 @@ export function ChatBot({
       if (analisisRestaurado) {
         assistantAnalysisRef.current = analisisRestaurado;
         setAssistantAnalysis(analisisRestaurado);
-
-        console.log("analisisRestaurado", analisisRestaurado);
-
         setStep("ready");
         setIsTyping(false);
       }
@@ -551,309 +684,31 @@ export function ChatBot({
         return;
       }
 
-      addMessageWithTyping(
-        "bot",
-        `¡Hola ${displayName}! Soy tu asistente.`,
-        500,
-      );
+      if (!welcomeSentRef.current) {
+        welcomeSentRef.current = true;
 
-      addMessageWithTyping(
-        "system",
-        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-          <Brain className="w-4 h-4 text-[#6841ea]" />
-          {"Obteniendo análisis de tus actividades..."}
-        </div>,
-      );
+        addMessageWithTyping(
+          "bot",
+          `¡Hola ${displayName}! 👋 Soy tu asistente.`,
+          500,
+        );
 
-      await fetchAssistantAnalysis();
+        addMessageWithTyping(
+          "system",
+          <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+            <Brain className="w-4 h-4 text-[#6841ea]" />
+            {"Obteniendo análisis de tus actividades..."}
+          </div>,
+        );
+
+        await fetchAssistantAnalysis();
+      }
     };
 
     init();
   }, []);
 
-  useEffect(() => {
-    const handlePiPMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-
-      switch (event.data.type) {
-        case "INIT_PIP":
-          if (event.data.data.messages) {
-            setMessages(event.data.data.messages);
-          }
-          if (event.data.data.assistantAnalysis) {
-            setAssistantAnalysis(event.data.data.assistantAnalysis);
-            assistantAnalysisRef.current = event.data.data.assistantAnalysis;
-          }
-          break;
-
-        case "SYNC_MESSAGES":
-          if (isInPiPWindow && event.data.messages) {
-            setMessages(event.data.messages);
-          }
-          break;
-
-        case "SYNC_ANALYSIS":
-          if (isInPiPWindow && event.data.analysis) {
-            setAssistantAnalysis(event.data.analysis);
-            assistantAnalysisRef.current = event.data.analysis;
-          }
-          break;
-
-        case "CLOSE_PIP":
-          if (isInPiPWindow) {
-            window.close();
-          }
-          break;
-
-        case "THEME_CHANGED":
-          if (isInPiPWindow && event.data.theme) {
-            setInternalTheme(event.data.theme);
-          }
-          break;
-      }
-    };
-
-    window.addEventListener("message", handlePiPMessage);
-
-    return () => {
-      window.removeEventListener("message", handlePiPMessage);
-    };
-  }, [isInPiPWindow]);
-
-  useEffect(() => {
-    if (
-      isPiPMode &&
-      pipWindowRef.current &&
-      !pipWindowRef.current.closed &&
-      !isInPiPWindow
-    ) {
-      try {
-        pipWindowRef.current.postMessage(
-          {
-            type: "SYNC_MESSAGES",
-            messages,
-          },
-          window.location.origin,
-        );
-      } catch (error) {
-        console.error("Error sincronizando mensajes:", error);
-      }
-    }
-  }, [messages, isPiPMode, isInPiPWindow]);
-
-  useEffect(() => {
-    if (
-      isPiPMode &&
-      pipWindowRef.current &&
-      !pipWindowRef.current.closed &&
-      !isInPiPWindow
-    ) {
-      try {
-        pipWindowRef.current.postMessage(
-          {
-            type: "SYNC_ANALYSIS",
-            analysis: assistantAnalysis,
-          },
-          window.location.origin,
-        );
-      } catch (error) {
-        console.error("Error sincronizando análisis:", error);
-      }
-    }
-  }, [assistantAnalysis, isPiPMode, isInPiPWindow]);
-
-  useEffect(() => {
-    if (
-      isPiPMode &&
-      pipWindowRef.current &&
-      !pipWindowRef.current.closed &&
-      !isInPiPWindow
-    ) {
-      try {
-        pipWindowRef.current.postMessage(
-          {
-            type: "THEME_CHANGED",
-            theme: theme,
-          },
-          window.location.origin,
-        );
-      } catch (error) {
-        console.error("Error sincronizando tema:", error);
-      }
-    }
-  }, [theme, isPiPMode, isInPiPWindow]);
-
-  useEffect(() => {
-    onActualizarTyping?.(isTyping);
-  }, [isTyping, onActualizarTyping]);
-
-  useEffect(() => {
-    if (!voiceRecognition.voiceTranscript) {
-      return;
-    }
-
-    if (!voiceMode.voiceMode) {
-      return;
-    }
-
-    processVoiceCommand(voiceRecognition.voiceTranscript);
-  }, [voiceRecognition.voiceTranscript, voiceMode.voiceMode]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("speechSynthesis" in window)) return;
-
-    const loadVoices = () => {
-      window.speechSynthesis.getVoices();
-    };
-
-    loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (typeof document === "undefined") return;
-    document.documentElement.classList.add("dark");
-
-    const checkIfPiPWindow = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const isPiPWindow = urlParams.get("pip") === "true";
-      setIsInPiPWindow(isPiPWindow);
-
-      if (isPiPWindow) {
-        document.title = "Asistente Anfeta";
-        document.documentElement.style.overflow = "hidden";
-        document.body.style.margin = "0";
-        document.body.style.padding = "0";
-        document.body.style.overflow = "hidden";
-        document.body.style.height = "100vh";
-        document.body.style.width = "100vw";
-
-        if (window.opener) {
-          setIsPiPMode(true);
-          try {
-            window.moveTo(window.screenX, window.screenY);
-            window.resizeTo(400, 600);
-          } catch (e) {}
-        }
-
-        window.addEventListener("message", handleParentMessage);
-      }
-    };
-
-    checkIfPiPWindow();
-
-    if (!isInPiPWindow) {
-      window.addEventListener("message", handleChildMessage);
-    }
-
-    const checkPiPWindowInterval = setInterval(() => {
-      if (pipWindowRef.current && pipWindowRef.current.closed) {
-        setIsPiPMode(false);
-        pipWindowRef.current = null;
-      }
-    }, 1000);
-
-    const handleBeforeUnload = () => {
-      if (pipWindowRef.current && !pipWindowRef.current.closed) {
-        try {
-          pipWindowRef.current.postMessage({ type: "PARENT_CLOSING" }, "*");
-        } catch (e) {}
-        pipWindowRef.current.close();
-      }
-      voiceRecognition.stopRecording();
-      stopVoice();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("message", handleParentMessage);
-      window.removeEventListener("message", handleChildMessage);
-      clearInterval(checkPiPWindowInterval);
-
-      if (pipWindowRef.current && !pipWindowRef.current.closed) {
-        pipWindowRef.current.close();
-      }
-      voiceRecognition.stopRecording();
-      stopVoice();
-    };
-  }, [isInPiPWindow, stopVoice]);
-
-  useEffect(() => {
-    if (!assistantAnalysis) return;
-    if (sidebarCargado) return;
-
-    setSidebarCargando(true);
-    obtenerHistorialSidebar()
-      .then((res) => {
-        setData(res.data);
-        setSidebarCargado(true);
-      })
-      .catch((error) => {
-        setData([]);
-      })
-      .finally(() => setSidebarCargando(false));
-  }, [assistantAnalysis, sidebarCargado]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isTyping, voiceMode.voiceMode, voiceMode.voiceStep]);
-
-  useEffect(() => {
-    if (
-      inputRef.current &&
-      step !== "loading-analysis" &&
-      !voiceMode.voiceMode
-    ) {
-      inputRef.current.focus();
-    }
-  }, [step, voiceMode.voiceMode]);
-
-  // ==================== FUNCIONES: MODO VOZ (CONTINUACIÓN) ====================
-  const handleStartVoiceMode = () => {
-    const analysis = assistantAnalysisRef.current;
-    if (!analysis) {
-      speakText("No hay actividades para explicar.");
-      return;
-    }
-
-    const activitiesWithTasksLocal = analysis.data.revisionesPorActividad
-      .filter(
-        (actividad) =>
-          actividad.tareasConTiempo && actividad.tareasConTiempo.length > 0,
-      )
-      .map((actividad) => ({
-        actividadId: actividad.actividadId,
-        actividadTitulo: actividad.actividadTitulo,
-        actividadHorario: actividad.actividadHorario,
-        tareas: actividad.tareasConTiempo.map((tarea) => ({
-          ...tarea,
-          actividadId: actividad.actividadId,
-          actividadTitulo: actividad.actividadTitulo,
-        })),
-      }));
-
-    if (activitiesWithTasksLocal.length === 0) {
-      speakText("No hay tareas con tiempo asignado para explicar.");
-      return;
-    }
-
-    voiceMode.setVoiceMode(true);
-    voiceMode.setVoiceStep("confirm-start");
-    voiceMode.setExpectedInputType("confirmation");
-    voiceMode.setCurrentActivityIndex(0);
-    voiceMode.setCurrentTaskIndex(0);
-    voiceMode.setTaskExplanations([]);
-
-    const mensaje = `Vamos a explicar ${activitiesWithTasksLocal.length} actividad${activitiesWithTasksLocal.length !== 1 ? "es" : ""} con tareas programadas. ¿Listo para comenzar?`;
-    speakText(mensaje);
-  };
-
+  // ==================== EFECTO: RESTAURACIÓN DE MENSAJES ====================
   useMessageRestoration({
     conversacionActiva,
     mensajesRestaurados,
@@ -871,6 +726,94 @@ export function ChatBot({
     scrollRef,
   });
 
+  // ==================== EFECTO: SIDEBAR ====================
+  useEffect(() => {
+    if (!assistantAnalysis) return;
+    if (sidebarCargado) return;
+
+    setSidebarCargando(true);
+    obtenerHistorialSidebar()
+      .then((res) => {
+        setData(res.data);
+        setSidebarCargado(true);
+      })
+      .catch((error) => {
+        console.error("Error al cargar sidebar:", error);
+        setData([]);
+      })
+      .finally(() => setSidebarCargando(false));
+  }, [assistantAnalysis, sidebarCargado]);
+
+  // ==================== EFECTO: AUTO-SCROLL ====================
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isTyping, voiceMode.voiceMode, voiceMode.voiceStep]);
+
+  // ==================== EFECTO: FOCUS INPUT ====================
+  useEffect(() => {
+    if (
+      inputRef.current &&
+      step !== "loading-analysis" &&
+      !voiceMode.voiceMode
+    ) {
+      inputRef.current.focus();
+    }
+  }, [step, voiceMode.voiceMode]);
+
+  // ==================== EFECTO: ACTUALIZAR TYPING ====================
+  useEffect(() => {
+    onActualizarTyping?.(isTyping);
+  }, [isTyping, onActualizarTyping]);
+
+  // ==================== EFECTO: PiP WINDOW ====================
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkIfPiPWindow = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isPiPWindow = urlParams.get("pip") === "true";
+      setIsInPiPWindow(isPiPWindow);
+
+      if (isPiPWindow) {
+        document.title = "Asistente Anfeta";
+        document.documentElement.style.overflow = "hidden";
+        document.body.style.margin = "0";
+        document.body.style.padding = "0";
+        document.body.style.overflow = "hidden";
+        document.body.style.height = "100vh";
+        document.body.style.width = "100vw";
+
+        if (window.opener) {
+          setIsPiPMode(true);
+        }
+      }
+    };
+
+    checkIfPiPWindow();
+
+    const handleBeforeUnload = () => {
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        pipWindowRef.current.close();
+      }
+      voiceRecognition.stopRecording();
+      stopVoice();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (pipWindowRef.current && !pipWindowRef.current.closed) {
+        pipWindowRef.current.close();
+      }
+      voiceRecognition.stopRecording();
+      stopVoice();
+    };
+  }, [stopVoice]);
+
+  // ==================== FUNCIONES: MODO VOZ - CONTROL ====================
   const finishVoiceMode = () => {
     stopVoice();
 
@@ -879,6 +822,10 @@ export function ChatBot({
     voiceMode.setExpectedInputType("none");
     voiceMode.setCurrentActivityIndex(0);
     voiceMode.setCurrentTaskIndex(0);
+
+    // Limpiar filtros
+    setSelectedTaskIds([]);
+    setFilteredActivitiesForVoice([]);
 
     addMessage(
       "bot",
@@ -911,10 +858,19 @@ export function ChatBot({
     voiceRecognition.stopRecording();
     cancelVoiceRecording();
     voiceMode.cancelVoiceMode();
+
+    // Limpiar filtros
+    setSelectedTaskIds([]);
+    setFilteredActivitiesForVoice([]);
   };
 
   const confirmStartVoiceMode = () => {
-    if (activitiesWithTasks.length === 0) {
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
+    if (activitiesToUse.length === 0) {
       speakText("No hay actividades con tareas para explicar.");
       setTimeout(() => voiceMode.cancelVoiceMode(), 1000);
       return;
@@ -941,10 +897,15 @@ export function ChatBot({
 
     stopVoice();
 
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
     const currentTask = getCurrentTask(
       voiceMode.currentActivityIndex,
       voiceMode.currentTaskIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
 
     if (currentTask) {
@@ -957,20 +918,13 @@ export function ChatBot({
     voiceMode.setExpectedInputType("explanation");
 
     setTimeout(() => {
-      startRecordingWrapper();
+      // ✅ USAR autoSendVoiceGuided en lugar de voiceRecognition
+      autoSendVoiceGuided.startVoiceRecording();
     }, 100);
-  };
-
-  const startRecordingWrapper = () => {
-    voiceRecognition.startRecording(undefined, (error) => {
-      console.error("Error en reconocimiento de voz:", error);
-      speakText("Hubo un error con el micrófono. Por favor, intenta de nuevo.");
-    });
   };
 
   const processVoiceExplanation = async (transcript: string) => {
     const trimmedTranscript = cleanExplanationTranscript(transcript);
-
     const validation = validateExplanationLength(trimmedTranscript);
 
     if (!validation.isValid) {
@@ -982,14 +936,19 @@ export function ChatBot({
       return;
     }
 
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
     const currentTask = getCurrentTask(
       voiceMode.currentActivityIndex,
       voiceMode.currentTaskIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
     const currentActivity = getCurrentActivity(
       voiceMode.currentActivityIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
 
     if (!currentTask || !currentActivity) {
@@ -1006,6 +965,7 @@ export function ChatBot({
         nombrePendiente: currentTask.nombre,
         idPendiente: currentTask.id,
         explicacion: trimmedTranscript,
+        userEmail: colaborador.email,
       };
 
       const response = await sendPendienteValidarYGuardar(payload);
@@ -1044,7 +1004,7 @@ export function ChatBot({
             voiceMode.setCurrentTaskIndex(0);
             voiceMode.setRetryCount(0);
 
-            if (nextActivityIndex < activitiesWithTasks.length) {
+            if (nextActivityIndex < activitiesToUse.length) {
               speakActivityByIndex(nextActivityIndex);
             } else {
               voiceMode.setVoiceStep("summary");
@@ -1080,10 +1040,15 @@ export function ChatBot({
   };
 
   const retryExplanation = () => {
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
     const currentTask = getCurrentTask(
       voiceMode.currentActivityIndex,
       voiceMode.currentTaskIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
 
     if (!currentTask) return;
@@ -1105,14 +1070,19 @@ export function ChatBot({
   };
 
   const skipTask = () => {
+    const activitiesToUse =
+      filteredActivitiesForVoice.length > 0
+        ? filteredActivitiesForVoice
+        : activitiesWithTasks;
+
     const currentTask = getCurrentTask(
       voiceMode.currentActivityIndex,
       voiceMode.currentTaskIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
     const currentActivity = getCurrentActivity(
       voiceMode.currentActivityIndex,
-      activitiesWithTasks,
+      activitiesToUse,
     );
 
     if (!currentTask || !currentActivity) return;
@@ -1148,7 +1118,7 @@ export function ChatBot({
       voiceMode.setCurrentTaskIndex(0);
       voiceMode.resetForNextTask();
 
-      if (nextActivityIndex < activitiesWithTasks.length) {
+      if (nextActivityIndex < activitiesToUse.length) {
         setTimeout(() => speakActivityByIndex(nextActivityIndex), 500);
       } else {
         voiceMode.setVoiceStep("summary");
@@ -1159,53 +1129,6 @@ export function ChatBot({
           );
         }, 500);
       }
-    }
-  };
-
-  const processVoiceCommand = (transcript: string) => {
-    if (!transcript.trim()) return;
-
-    const lowerTranscript = transcript.toLowerCase().trim();
-
-    if (!voiceMode.voiceMode) return;
-
-    switch (voiceMode.expectedInputType) {
-      case "confirmation":
-        if (
-          isClearCommand(lowerTranscript, ["sí", "si", "confirmar", "correcto"])
-        ) {
-          sendExplanationsToBackend();
-          return;
-        }
-
-        if (isClearCommand(lowerTranscript, ["no", "corregir", "cambiar"])) {
-          if (voiceMode.voiceStep === "confirmation") {
-            retryExplanation();
-          }
-          return;
-        }
-        break;
-
-      case "explanation":
-        if (voiceMode.voiceStep === "listening-explanation") {
-          if (isClearCommand(lowerTranscript, ["terminar", "listo", "fin"])) {
-            if (voiceRecognition.voiceTranscript.trim()) {
-              processVoiceExplanation(voiceRecognition.voiceTranscript);
-              return;
-            }
-          }
-        }
-        break;
-    }
-
-    if (isClearCommand(lowerTranscript, ["saltar", "skip"])) {
-      skipTask();
-      return;
-    }
-
-    if (isClearCommand(lowerTranscript, ["cancelar", "salir"])) {
-      cancelVoiceMode();
-      return;
     }
   };
 
@@ -1259,6 +1182,10 @@ export function ChatBot({
         voiceMode.setVoiceMode(false);
         voiceMode.setExpectedInputType("none");
 
+        // Limpiar filtros
+        setSelectedTaskIds([]);
+        setFilteredActivitiesForVoice([]);
+
         addMessage(
           "bot",
           <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
@@ -1284,277 +1211,6 @@ export function ChatBot({
       speakText("Hubo un error al enviar tu reporte.");
       voiceMode.setVoiceStep("summary");
       voiceMode.setExpectedInputType("confirmation");
-    }
-  };
-
-  // ==================== FUNCIONES: REPORTE ====================
-  const preguntarPendiente = (index: number) => {
-    if (index >= pendientesReporte.length) {
-      speakText("Terminamos. ¿Quieres guardar el reporte?");
-      return;
-    }
-
-    const p = pendientesReporte[index];
-    setIndicePendienteActual(index);
-
-    const texto = `Tarea ${index + 1}: ${p.nombre}. ¿La completaste y qué hiciste? O si no, ¿por qué no?`;
-    speakText(texto);
-
-    setTimeout(() => {
-      voiceRecognition.startRecording(
-        (transcript) => {
-          if (transcript.trim()) {
-            procesarRespuestaReporte(transcript);
-          }
-        },
-        (error) => {
-          speakText("Error con el micrófono.");
-        },
-      );
-    }, texto.length * 50);
-  };
-
-  const procesarRespuestaReporte = async (transcript: string) => {
-    const trimmedTranscript = transcript.trim();
-    explanationProcessedRef.current = true;
-
-    if (!trimmedTranscript || trimmedTranscript.length < 5) {
-      speakText("Tu respuesta es muy corta. Por favor, da más detalles.");
-      setTimeout(() => {
-        setPasoModalVoz("esperando");
-        explanationProcessedRef.current = false;
-      }, 1000);
-      return;
-    }
-
-    const p = pendientesReporte[indicePendienteActual];
-    if (!p) return;
-
-    setPasoModalVoz("procesando");
-    speakText("Validando...");
-
-    try {
-      const data = await validarReportePendiente(
-        p.pendienteId,
-        p.actividadId,
-        trimmedTranscript,
-      );
-
-      const fueCompletado = data.terminada;
-
-      setPendientesReporte((prev) =>
-        prev.map((item) =>
-          item.pendienteId === p.pendienteId
-            ? {
-                ...item,
-                completadoLocal: fueCompletado,
-                motivoLocal: fueCompletado ? "" : trimmedTranscript,
-              }
-            : item,
-        ),
-      );
-
-      speakText(
-        data.terminada ? "Ok, completada." : "Entendido, no completada.",
-      );
-
-      setTimeout(() => {
-        setPasoModalVoz("esperando");
-        explanationProcessedRef.current = false;
-        setIndicePendienteActual((prev) => prev + 1);
-
-        if (indicePendienteActual + 1 < pendientesReporte.length) {
-          setTimeout(() => preguntarPendiente(indicePendienteActual + 1), 500);
-        }
-      }, 1500);
-    } catch (error) {
-      speakText("Error. Intenta de nuevo.");
-      setTimeout(() => {
-        setPasoModalVoz("esperando");
-        explanationProcessedRef.current = false;
-      }, 1500);
-    }
-  };
-
-  const guardarReporteDiario = async () => {
-    try {
-      setGuardandoReporte(true);
-
-      const pendientesSinMotivo = pendientesReporte.filter(
-        (p) =>
-          !p.completadoLocal &&
-          (!p.motivoLocal || p.motivoLocal.trim().length < 5),
-      );
-
-      if (pendientesSinMotivo.length > 0) {
-        speakText(
-          "Por favor, explica por qué no completaste todas las tareas marcadas como incompletas.",
-        );
-        setGuardandoReporte(false);
-        return;
-      }
-
-      const pendientesParaEnviar = pendientesReporte.map((p) => ({
-        pendienteId: p.pendienteId,
-        actividadId: p.actividadId,
-        completado: p.completadoLocal,
-        motivoNoCompletado:
-          !p.completadoLocal && p.motivoLocal ? p.motivoLocal : undefined,
-      }));
-
-      const response = await actualizarEstadoPendientes(pendientesParaEnviar);
-
-      if (response.success) {
-        setMostrarModalReporte(false);
-        setIndicePendienteActual(0);
-        setPasoModalVoz("esperando");
-
-        addMessage(
-          "bot",
-          <div
-            className={`p-4 rounded-lg border ${
-              theme === "dark"
-                ? "bg-green-900/20 border-green-500/20"
-                : "bg-green-50 border-green-200"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-              <div>
-                <span className="font-medium">Reporte guardado</span>
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                  Se actualizaron {response.actualizados} tareas correctamente.
-                  ¡Buen trabajo hoy!
-                </p>
-              </div>
-            </div>
-          </div>,
-        );
-
-        speakText(
-          `Reporte guardado. Se actualizaron ${response.actualizados} tareas. Buen trabajo hoy.`,
-        );
-        toast({
-          title: "Reporte finalizado",
-          description: `Se actualizaron ${response.actualizados} tareas correctamente.`,
-        });
-      }
-    } catch (error) {
-      addMessage(
-        "bot",
-        <div
-          className={`p-4 rounded-lg border ${
-            theme === "dark"
-              ? "bg-red-900/20 border-red-500/20"
-              : "bg-red-50 border-red-200"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span>Error al guardar el reporte. Intenta nuevamente.</span>
-          </div>
-        </div>,
-      );
-      toast({
-        variant: "destructive",
-        title: "Error al guardar",
-        description: "No se pudo actualizar el estado de tus tareas.",
-      });
-    } finally {
-      setGuardandoReporte(false);
-    }
-  };
-
-  const openPiPWindow = () => {
-    if (isPiPMode) return;
-
-    try {
-      const width = 400;
-      const height = 600;
-      const left = window.screen.width - width - 20;
-      const top = 20;
-
-      const pipWindow = window.open(
-        `${window.location.origin}${window.location.pathname}?pip=true`,
-        "PiPChat",
-        `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,toolbar=no,menubar=no,location=no,status=no`,
-      );
-
-      if (pipWindow) {
-        pipWindowRef.current = pipWindow;
-        setIsPiPMode(true);
-
-        const transferState = () => {
-          if (pipWindow.closed) return;
-
-          try {
-            pipWindow.postMessage(
-              {
-                type: "INIT_PIP",
-                data: {
-                  messages,
-                  assistantAnalysis,
-                  conversacionActiva,
-                  theme,
-                },
-              },
-              window.location.origin,
-            );
-          } catch (error) {
-            console.error("Error transfiriendo estado:", error);
-          }
-        };
-
-        setTimeout(transferState, 500);
-
-        const checkClosed = setInterval(() => {
-          if (pipWindow.closed) {
-            clearInterval(checkClosed);
-            setIsPiPMode(false);
-            pipWindowRef.current = null;
-          }
-        }, 500);
-      }
-    } catch (error) {
-      console.error("Error al abrir ventana PiP:", error);
-      toast({
-        variant: "destructive",
-        title: "Error PiP",
-        description:
-          "No se pudo abrir la ventana flotante. Revisa los permisos de ventanas emergentes.",
-      });
-    }
-  };
-
-  const closePiPWindow = () => {
-    if (pipWindowRef.current && !pipWindowRef.current.closed) {
-      try {
-        pipWindowRef.current.postMessage(
-          { type: "CLOSE_PIP" },
-          window.location.origin,
-        );
-        pipWindowRef.current.close();
-      } catch (error) {
-        console.error("Error al cerrar ventana PiP:", error);
-      }
-    }
-
-    setIsPiPMode(false);
-    pipWindowRef.current = null;
-  };
-
-  const handleParentMessage = (event: MessageEvent) => {
-    if (event.origin !== window.location.origin) return;
-    if (event.data.type === "PARENT_CLOSING") {
-      window.close();
-    }
-  };
-
-  const handleChildMessage = (event: MessageEvent) => {
-    if (event.origin !== window.location.origin) return;
-    if (event.data.type === "CHILD_CLOSED") {
-      setIsPiPMode(false);
-      pipWindowRef.current = null;
     }
   };
 
@@ -1647,12 +1303,15 @@ export function ChatBot({
 
       const data = await obtenerActividadesConRevisiones(requestBody);
 
-      const adaptedData: AssistantAnalysis = {
+      const adaptedData: AssistantAnalysis & {
+        colaboradoresInvolucrados?: any[];
+      } = {
         success: data.success,
         answer: data.answer,
         provider: data.provider || "Gemini",
         sessionId: data.sessionId,
         proyectoPrincipal: data.proyectoPrincipal || "Sin proyecto principal",
+        colaboradoresInvolucrados: data.colaboradoresInvolucrados || [],
         metrics: {
           totalActividades: data.metrics?.totalActividadesProgramadas || 0,
           actividadesConTiempoTotal:
@@ -1669,6 +1328,7 @@ export function ChatBot({
             horario: a.horario,
             status: a.status,
             proyecto: a.proyecto,
+            colaboradores: a.colaboradores || [],
             esHorarioLaboral: a.esHorarioLaboral || false,
             tieneRevisionesConTiempo: a.tieneRevisionesConTiempo || false,
           })),
@@ -1687,6 +1347,7 @@ export function ChatBot({
                   fechaFinTerminada: t.fechaFinTerminada || null,
                   diasPendiente: t.diasPendiente || 0,
                   prioridad: t.prioridad || "BAJA",
+                  colaboradores: t.colaboradores || [],
                 }),
               );
 
@@ -1694,6 +1355,8 @@ export function ChatBot({
                 actividadId: act.actividadId,
                 actividadTitulo: act.actividadTitulo,
                 actividadHorario: act.actividadHorario,
+                colaboradores: act.colaboradores || [],
+                assigneesOriginales: act.assigneesOriginales || [],
                 tareasConTiempo: tareasMapeadas,
                 totalTareasConTiempo: act.totalTareasConTiempo || 0,
                 tareasAltaPrioridad: act.tareasAltaPrioridad || 0,
@@ -1706,38 +1369,14 @@ export function ChatBot({
         multiActividad: data.multiActividad || false,
       };
 
-      const actividadesConvertidas: ActividadDiaria[] =
-        adaptedData.data.revisionesPorActividad.map((revision) => ({
-          actividadId: revision.actividadId,
-          titulo: revision.actividadTitulo,
-          tituloProyecto: adaptedData.proyectoPrincipal,
-          horaInicio: revision.actividadHorario.split(" - ")[0] || "",
-          horaFin: revision.actividadHorario.split(" - ")[1] || "",
-          status: "activa",
-          fecha: new Date().toISOString().split("T")[0],
-          pendientes: revision.tareasConTiempo.map((tarea) => ({
-            pendienteId: tarea.id,
-            nombre: tarea.nombre,
-            descripcion: tarea.descripcion || "",
-            terminada: tarea.terminada,
-            confirmada: tarea.confirmada,
-            duracionMin: tarea.duracionMin,
-            fechaCreacion: tarea.fechaCreacion,
-            fechaFinTerminada: tarea.fechaFinTerminada || null,
-            motivoNoCompletado: null,
-          })),
-          ultimaActualizacion: new Date(),
-        }));
-
       assistantAnalysisRef.current = adaptedData;
-      setActividadesDiarias(actividadesConvertidas);
       setAssistantAnalysis(adaptedData);
+
       setStep("ready");
       showAssistantAnalysis(adaptedData, isRestoration);
     } catch (error) {
       setIsTyping(false);
       setStep("error");
-
       addMessage(
         "bot",
         <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
@@ -1760,20 +1399,7 @@ export function ChatBot({
       });
     } finally {
       setIsTyping(false);
-      setTimeout(() => {
-        fetchingAnalysisRef.current = false;
-      }, 1000);
-    }
-  };
-
-  // ==================== FUNCIONES: TEMA ====================
-  const toggleTheme = () => {
-    if (externalToggle) {
-      externalToggle();
-    } else {
-      const newTheme = internalTheme === "light" ? "dark" : "light";
-      setInternalTheme(newTheme);
-      document.documentElement.classList.toggle("dark", newTheme === "dark");
+      fetchingAnalysisRef.current = false;
     }
   };
 
@@ -1782,9 +1408,8 @@ export function ChatBot({
     const newMode = chatMode === "normal" ? "ia" : "normal";
     setChatMode(newMode);
 
-    if (newMode === "ia") {
-      addMessage(
-        "system",
+    const modeMessage =
+      newMode === "ia" ? (
         <div
           className={`p-3 rounded-lg border ${
             theme === "dark"
@@ -1802,32 +1427,18 @@ export function ChatBot({
             Ahora puedes hacer preguntas sobre tus tareas y recibir ayuda
             personalizada.
           </p>
-        </div>,
-      );
-    } else {
-      addMessage(
-        "system",
+        </div>
+      ) : (
         <div className="text-xs text-gray-500 dark:text-gray-400">
           Modo normal activado
-        </div>,
+        </div>
       );
-    }
+
+    addMessage("system", modeMessage);
   };
 
   const handleUserInputChange = (value: string) => {
     setUserInput(value);
-
-    if (
-      value !== lastTranscriptRef.current &&
-      voiceRecognition.voiceTranscript
-    ) {
-      setIsUserEditing(true);
-
-      if (autoSendTimerRef.current) {
-        clearTimeout(autoSendTimerRef.current);
-        autoSendTimerRef.current = null;
-      }
-    }
   };
 
   const handleUserInput = async (e: React.FormEvent) => {
@@ -1902,6 +1513,107 @@ export function ChatBot({
     }
   };
 
+  // ==================== FUNCIONES: TEMA ====================
+  const toggleTheme = () => {
+    if (externalToggle) {
+      externalToggle();
+    } else {
+      const newTheme = internalTheme === "light" ? "dark" : "light";
+      setInternalTheme(newTheme);
+      document.documentElement.classList.toggle("dark", newTheme === "dark");
+    }
+  };
+
+  // ==================== FUNCIONES: REPORTE ====================
+  const guardarReporteDiario = async () => {
+    try {
+      setGuardandoReporte(true);
+
+      const pendientesSinMotivo = pendientesReporte.filter(
+        (p) =>
+          !p.completadoLocal &&
+          (!p.motivoLocal || p.motivoLocal.trim().length < 5),
+      );
+
+      if (pendientesSinMotivo.length > 0) {
+        speakText(
+          "Por favor, explica por qué no completaste todas las tareas marcadas como incompletas.",
+        );
+        setGuardandoReporte(false);
+        return;
+      }
+
+      const pendientesParaEnviar = pendientesReporte.map((p) => ({
+        pendienteId: p.pendienteId,
+        actividadId: p.actividadId,
+        completado: p.completadoLocal,
+        motivoNoCompletado:
+          !p.completadoLocal && p.motivoLocal ? p.motivoLocal : undefined,
+      }));
+
+      const response = await actualizarEstadoPendientes(pendientesParaEnviar);
+
+      if (response.success) {
+        setMostrarModalReporte(false);
+        setIndicePendienteActual(0);
+        setPasoModalVoz("esperando");
+
+        addMessage(
+          "bot",
+          <div
+            className={`p-4 rounded-lg border ${
+              theme === "dark"
+                ? "bg-green-900/20 border-green-500/20"
+                : "bg-green-50 border-green-200"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div>
+                <span className="font-medium">Reporte guardado</span>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                  Se actualizaron {response.actualizados} tareas correctamente.
+                  ¡Buen trabajo hoy!
+                </p>
+              </div>
+            </div>
+          </div>,
+        );
+
+        speakText(
+          `Reporte guardado. Se actualizaron ${response.actualizados} tareas. Buen trabajo hoy.`,
+        );
+        toast({
+          title: "Reporte finalizado",
+          description: `Se actualizaron ${response.actualizados} tareas correctamente.`,
+        });
+      }
+    } catch (error) {
+      addMessage(
+        "bot",
+        <div
+          className={`p-4 rounded-lg border ${
+            theme === "dark"
+              ? "bg-red-900/20 border-red-500/20"
+              : "bg-red-50 border-red-200"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <span>Error al guardar el reporte. Intenta nuevamente.</span>
+          </div>
+        </div>,
+      );
+      toast({
+        variant: "destructive",
+        title: "Error al guardar",
+        description: "No se pudo actualizar el estado de tus tareas.",
+      });
+    } finally {
+      setGuardandoReporte(false);
+    }
+  };
+
   // ==================== RENDER ====================
   return (
     <div
@@ -1919,12 +1631,8 @@ export function ChatBot({
         changeRate={changeRate}
         isSpeaking={isSpeaking}
         isPiPMode={isPiPMode}
-        openPiPWindow={() => {
-          openPiPWindow();
-        }}
-        closePiPWindow={() => {
-          closePiPWindow();
-        }}
+        openPiPWindow={() => {}}
+        closePiPWindow={() => {}}
         setShowLogoutDialog={setShowLogoutDialog}
       />
 
@@ -1936,9 +1644,13 @@ export function ChatBot({
         finishVoiceMode={finishVoiceMode}
         currentActivityIndex={voiceMode.currentActivityIndex}
         currentTaskIndex={voiceMode.currentTaskIndex}
-        activitiesWithTasks={activitiesWithTasks}
+        activitiesWithTasks={
+          filteredActivitiesForVoice.length > 0
+            ? filteredActivitiesForVoice
+            : activitiesWithTasks
+        }
         taskExplanations={voiceMode.taskExplanations}
-        voiceTranscript={voiceRecognition.voiceTranscript}
+        voiceTranscript={autoSendVoiceGuided.transcript}
         currentListeningFor={voiceMode.currentListeningFor}
         retryCount={voiceMode.retryCount}
         voiceConfirmationText=""
@@ -1958,7 +1670,7 @@ export function ChatBot({
         setIsListening={() => {}}
         setVoiceStep={voiceMode.setVoiceStep}
         setCurrentListeningFor={voiceMode.setCurrentListeningFor}
-        autoSendVoice={autoSendVoiceGuided}
+        selectedTaskIds={selectedTaskIds}
       />
 
       <div
@@ -1980,23 +1692,35 @@ export function ChatBot({
             assistantAnalysis={assistantAnalysis}
             onOpenReport={() => setMostrarModalReporte(true)}
             onStartVoiceMode={handleStartVoiceMode}
+            onStartVoiceModeWithTasks={handleStartVoiceModeWithTasks}
             reportConfig={{
               horaInicio: horaInicioReporte,
               horaFin: horaFinReporte,
             }}
+            userEmail={colaborador.email}
           />
         </div>
       </div>
 
-      {isTranscribing && (
-        <div
-          className="fixed bottom-24 left-1/2 transform -translate-x-1/2 
-                        bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg
-                        flex items-center gap-2 z-50"
-        >
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-          <span>Transcribiendo audio...</span>
-        </div>
+      {!voiceMode.voiceMode && (
+        <ChatInputBar
+          userInput={userInput}
+          setUserInput={handleUserInputChange}
+          onSubmit={handleUserInput}
+          onVoiceClick={startVoiceRecording}
+          isRecording={isRecording}
+          canUserType={canUserType}
+          theme={theme}
+          onStartRecording={startVoiceRecording}
+          onCancelRecording={cancelVoiceRecording}
+          isTranscribing={isTranscribing}
+          audioLevel={audioLevel}
+          isLoadingIA={isLoadingIA}
+          inputRef={inputRef}
+          chatMode={chatMode}
+          isSpeaking={isSpeaking}
+          onToggleChatMode={toggleChatMode}
+        />
       )}
 
       <ReporteActividadesModal
@@ -2010,26 +1734,6 @@ export function ChatBot({
         onGuardarReporte={guardarReporteDiario}
         guardandoReporte={guardandoReporte}
       />
-
-      {!voiceMode.voiceMode && (
-        <ChatInputBar
-          onStartRecording={startVoiceRecording}
-          onCancelRecording={cancelVoiceRecording}
-          userInput={userInput}
-          setUserInput={handleUserInputChange}
-          onSubmit={handleUserInput}
-          onVoiceClick={startVoiceRecording}
-          isRecording={isRecording}
-          canUserType={canUserType}
-          theme={theme}
-          audioLevel={audioLevel}
-          isLoadingIA={isLoadingIA}
-          inputRef={inputRef}
-          chatMode={chatMode}
-          isSpeaking={isSpeaking}
-          onToggleChatMode={toggleChatMode}
-        />
-      )}
 
       <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
         <AlertDialogContent
