@@ -86,13 +86,11 @@ export async function validateSession(): Promise<any | null> {
     }
 
     if (!response.ok) {
-      throw new Error("SESSION_EXPIRED");
+      throw new Error(`401 Usuario no autotizado`);
     }
 
-    return await response.json();
-  } catch (error) {
-    return null; // 🔥 CLAVE
-  }
+    return response.json();
+  } catch (error) {}
 }
 
 export async function fetchActividadesByUser(

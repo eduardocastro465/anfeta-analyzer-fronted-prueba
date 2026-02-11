@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { LoginForm } from "@/components/login-form";
 import { ChatContainer } from "@/components/ChatContainer";
 import type { Colaborador, Actividad } from "@/lib/types";
-import { logout, validateSession } from "@/lib/api";
+import { logout } from "@/lib/api";
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -13,85 +13,59 @@ export default function Home() {
   const [userActividades, setUserActividades] = useState<Actividad[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const clearSession = useCallback(() => {
-    localStorage.removeItem("colaborador");
-    localStorage.removeItem("actividades");
+  // 🔹 Recuperar sesión
+  useEffect(() => {
+    try {
+      const savedColaborador = localStorage.getItem("colaborador");
+      const savedActividades = localStorage.getItem("actividades");
+
+      if (savedColaborador && savedActividades) {
+        setCurrentColaborador(JSON.parse(savedColaborador));
+        setUserActividades(JSON.parse(savedActividades));
+        setIsLoggedIn(true);
+      }
+    } catch (error) {
+      clearSession();
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // Logout - now using useCallback to avoid dependency issues
-  const handleLogout = useCallback(async () => {
+  const clearSession = () => {
+    localStorage.removeItem("colaborador");
+    localStorage.removeItem("actividades");
+  };
+
+  // 🔹 Login
+  const handleLogin = (colaborador: Colaborador, actividades: Actividad[]) => {
+    localStorage.setItem("colaborador", JSON.stringify(colaborador));
+    localStorage.setItem("actividades", JSON.stringify(actividades));
+
+    setCurrentColaborador(colaborador);
+    setUserActividades(actividades);
+    setIsLoggedIn(true);
+  };
+
+  // 🔹 Logout DEFINITIVO
+  const handleLogout = async () => {
     try {
-      await logout();
-    } catch (error) {
-      console.error("Error during logout:", error);
+      await logout(); // backend (cookies / jwt)
+    } catch (e) {
     } finally {
       clearSession();
       setIsLoggedIn(false);
       setCurrentColaborador(null);
       setUserActividades([]);
-      setIsLoading(false);
     }
-  }, [clearSession]);
+  };
 
-  // VALIDACIÓN REAL DE SESIÓN
-  useEffect(() => {
-    let mounted = true;
+  // 🔹 Función para navegar a reportes
+  const handleViewReports = () => {
+    // Redirige a la página de reportes (ColaboradoresView)
+    window.location.href = "/reporte-del-dia";
+  };
 
-    const init = async () => {
-      try {
-        const session = await validateSession();
-
-        if (!mounted) return;
-
-        // No hay sesión válida
-        if (!session) {
-          handleLogout();
-          return;
-        }
-
-        // Sesión válida - restaurar desde localStorage
-        const savedColaborador = localStorage.getItem("colaborador");
-        const savedActividades = localStorage.getItem("actividades");
-
-        if (savedColaborador && savedActividades) {
-          setCurrentColaborador(JSON.parse(savedColaborador));
-          setUserActividades(JSON.parse(savedActividades));
-          setIsLoggedIn(true);
-        } else {
-          // Datos faltantes en localStorage - hacer logout
-          handleLogout();
-        }
-      } catch (error) {
-        console.error("Error en init:", error);
-        if (mounted) {
-          handleLogout();
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    init();
-
-    return () => {
-      mounted = false;
-    };
-  }, [handleLogout]); //  Ahora incluye handleLogout como dependencia
-
-  // Login
-  const handleLogin = useCallback(
-    (colaborador: Colaborador, actividades: Actividad[]) => {
-      localStorage.setItem("colaborador", JSON.stringify(colaborador));
-      localStorage.setItem("actividades", JSON.stringify(actividades));
-      setCurrentColaborador(colaborador);
-      setUserActividades(actividades);
-      setIsLoggedIn(true);
-    },
-    [],
-  );
-
+  // 🔹 Loader
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -100,16 +74,18 @@ export default function Home() {
     );
   }
 
+  // 🔹 Login
   if (!isLoggedIn || !currentColaborador) {
     return <LoginForm onLogin={handleLogin} />;
   }
 
+  // 🔹 Chat
   return (
     <ChatContainer
       colaborador={currentColaborador}
       actividades={userActividades}
       onLogout={handleLogout}
-      onViewReports={() => (window.location.href = "/reporte-del-dia")}
+      onViewReports={handleViewReports} // 🔹 Pasa la función al ChatContainer
     />
   );
 }
