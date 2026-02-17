@@ -343,7 +343,7 @@ export async function obtenerActividadesConRevisiones(requestBody: any) {
         body: JSON.stringify(requestBody),
       },
     );
-    console.log(response);
+
     if (!response.ok) throw new Error(`Error: ${response.status}`);
     const data = await response.json();
     return data;
@@ -500,7 +500,8 @@ export async function consultarIAProyecto(
 export async function obtenerCambiosTareas() {
   try {
     const response = await fetch(
-      `${BASE_URL_BACK}/assistant/verificar-cambios-tareas`,
+      // `${BASE_URL_BACK}/assistant/verificar-cambios-tareas`,
+      `${BASE_URL_BACK}/assistant/verificar-cambios-anfeta`,
       {
         method: "GET",
         credentials: "include",
