@@ -59,7 +59,7 @@
     const actualizandoRef = useRef(false);
     const currentUserEmail = userEmail || "";
 
-    const INTERVALO_ACTUALIZACION_TAREAS = 5000; // 5 segundos en milisegundos
+    const INTERVALO_ACTUALIZACION_TAREAS = 3000; // 5 segundos en milisegundos
 
     // Actualizar la hora cada minuto
     useEffect(() => {

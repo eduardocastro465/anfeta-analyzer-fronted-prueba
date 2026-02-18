@@ -153,7 +153,7 @@ export function ChatBot({
 
   // ==================== FUNCTIONS ====================
   const getTurnoActual = (): "mañana" | "tarde" => {
-    return "mañana";
+    // return "mañana";
     //  return "tarde";
     const esTurnoMañana = isReportTime(
       horaInicioReporteMañana,
@@ -587,8 +587,8 @@ export function ChatBot({
 
     // Configurar modo voz
     voiceMode.setVoiceMode(true);
-    voiceMode.setVoiceStep("confirm-start");
-    voiceMode.setExpectedInputType("confirmation");
+    voiceMode.setVoiceStep("activity-presentation");
+    voiceMode.setExpectedInputType("none");
     voiceMode.setCurrentActivityIndex(0);
     voiceMode.setCurrentTaskIndex(0);
     voiceMode.setTaskExplanations([]);
@@ -632,8 +632,8 @@ export function ChatBot({
     setFilteredActivitiesForVoice([]);
 
     voiceMode.setVoiceMode(true);
-    voiceMode.setVoiceStep("confirm-start");
-    voiceMode.setExpectedInputType("confirmation");
+    voiceMode.setVoiceStep("activity-presentation");
+    voiceMode.setExpectedInputType("none");
     voiceMode.setCurrentActivityIndex(0);
     voiceMode.setCurrentTaskIndex(0);
     voiceMode.setTaskExplanations([]);
@@ -1420,107 +1420,105 @@ export function ChatBot({
   };
 
   const sendExplanationsToBackend = async () => {
-  if (!assistantAnalysis) {
-    return;
-  }
-
-  try {
-    voiceMode.setVoiceStep("sending");
-    voiceMode.setExpectedInputType("none");
-    speakText("Enviando tu reporte...");
-
-    const payload = {
-      sessionId: assistantAnalysis.sessionId,
-      userId: colaborador.email,
-      projectId: assistantAnalysis.proyectoPrincipal,
-      explanations: voiceMode.taskExplanations
-        .filter((exp) => exp.explanation !== "[Tarea saltada]")
-        .map((exp) => ({
-          taskId: exp.taskId,
-          taskName: exp.taskName,
-          activityTitle: exp.activityTitle,
-          explanation: exp.explanation,
-          priority: exp.priority,
-          duration: exp.duration,
-          recordedAt: exp.timestamp.toISOString(),
-          confirmed: exp.confirmed,
-        })),
-    };
-
-    const response = await guardarReporteTarde(payload);
-
-    if (response.ok) {
-      speakText("¡Correcto! Tu reporte ha sido enviado.");
-      
-      toast({
-        title: "Reporte guardado",
-        description: "Tus actividades han sido registradas con éxito.",
-      });
-
-      // ✅ ACTUALIZACIÓN SILENCIOSA: Solo actualiza datos, sin mensajes en el chat
-      try {
-        console.log("🔄 Actualizando datos en segundo plano...");
-        
-        // El parámetro silentUpdate: true evita:
-        // - Agregar mensajes al chat
-        // - Mostrar indicadores de carga
-        // - Cambiar el step
-        // Solo actualiza: assistantAnalysisRef.current y setAssistantAnalysis
-        await fetchAssistantAnalysis(false, false, true);
-        
-        console.log("✅ Datos actualizados silenciosamente");
-
-      } catch (updateError) {
-        console.error("❌ Error al actualizar datos:", updateError);
-        // No mostramos error al usuario, el reporte ya fue guardado
-      }
-
-    } else {
-      speakText("Hubo un error al enviar tu reporte.");
-      toast({
-        variant: "destructive",
-        title: "Error al enviar",
-        description: "No se pudo guardar el reporte en este momento.",
-      });
+    if (!assistantAnalysis) {
+      return;
     }
 
-    setTimeout(() => {
-      voiceMode.setVoiceStep("idle");
-      voiceMode.setVoiceMode(false);
+    try {
+      voiceMode.setVoiceStep("sending");
       voiceMode.setExpectedInputType("none");
+      speakText("Enviando tu reporte...");
 
-      // Limpiar filtros
-      setSelectedTaskIds([]);
-      setFilteredActivitiesForVoice([]);
+      const payload = {
+        sessionId: assistantAnalysis.sessionId,
+        userId: colaborador.email,
+        projectId: assistantAnalysis.proyectoPrincipal,
+        explanations: voiceMode.taskExplanations
+          .filter((exp) => exp.explanation !== "[Tarea saltada]")
+          .map((exp) => ({
+            taskId: exp.taskId,
+            taskName: exp.taskName,
+            activityTitle: exp.activityTitle,
+            explanation: exp.explanation,
+            priority: exp.priority,
+            duration: exp.duration,
+            recordedAt: exp.timestamp.toISOString(),
+            confirmed: exp.confirmed,
+          })),
+      };
 
-      addMessage(
-        "bot",
-        <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-          <div className="flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-500" />
-            <div>
-              <span className="font-medium">Actividades guardadas</span>
-              <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                Has explicado{" "}
-                {
-                  voiceMode.taskExplanations.filter(
-                    (exp) => exp.explanation !== "[Tarea saltada]",
-                  ).length
-                }{" "}
-                tareas.
-              </p>
+      const response = await guardarReporteTarde(payload);
+
+      if (response.ok) {
+        speakText("¡Correcto! Tu reporte ha sido enviado.");
+
+        toast({
+          title: "Reporte guardado",
+          description: "Tus actividades han sido registradas con éxito.",
+        });
+
+        // ✅ ACTUALIZACIÓN SILENCIOSA: Solo actualiza datos, sin mensajes en el chat
+        try {
+          console.log("🔄 Actualizando datos en segundo plano...");
+
+          // El parámetro silentUpdate: true evita:
+          // - Agregar mensajes al chat
+          // - Mostrar indicadores de carga
+          // - Cambiar el step
+          // Solo actualiza: assistantAnalysisRef.current y setAssistantAnalysis
+          await fetchAssistantAnalysis(false, false, true);
+
+          console.log("✅ Datos actualizados silenciosamente");
+        } catch (updateError) {
+          console.error("❌ Error al actualizar datos:", updateError);
+          // No mostramos error al usuario, el reporte ya fue guardado
+        }
+      } else {
+        speakText("Hubo un error al enviar tu reporte.");
+        toast({
+          variant: "destructive",
+          title: "Error al enviar",
+          description: "No se pudo guardar el reporte en este momento.",
+        });
+      }
+
+      setTimeout(() => {
+        voiceMode.setVoiceStep("idle");
+        voiceMode.setVoiceMode(false);
+        voiceMode.setExpectedInputType("none");
+
+        // Limpiar filtros
+        setSelectedTaskIds([]);
+        setFilteredActivitiesForVoice([]);
+
+        addMessage(
+          "bot",
+          <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="flex items-center gap-3">
+              <Check className="w-5 h-5 text-green-500" />
+              <div>
+                <span className="font-medium">Actividades guardadas</span>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                  Has explicado{" "}
+                  {
+                    voiceMode.taskExplanations.filter(
+                      (exp) => exp.explanation !== "[Tarea saltada]",
+                    ).length
+                  }{" "}
+                  tareas.
+                </p>
+              </div>
             </div>
-          </div>
-        </div>,
-      );
-    }, 1000);
-  } catch (error) {
-    console.error("❌ Error general en sendExplanationsToBackend:", error);
-    speakText("Hubo un error al enviar tu reporte.");
-    voiceMode.setVoiceStep("summary");
-    voiceMode.setExpectedInputType("confirmation");
-  }
-};
+          </div>,
+        );
+      }, 1000);
+    } catch (error) {
+      console.error("❌ Error general en sendExplanationsToBackend:", error);
+      speakText("Hubo un error al enviar tu reporte.");
+      voiceMode.setVoiceStep("summary");
+      voiceMode.setExpectedInputType("confirmation");
+    }
+  };
 
   const showAssistantAnalysis = async (
     analysis: AssistantAnalysis,

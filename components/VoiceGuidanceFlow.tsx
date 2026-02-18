@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   AlertCircle,
   Headphones,
@@ -55,7 +55,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   speakTaskByIndices,
   startTaskExplanation,
   skipTask,
-  stopRecording,
   processVoiceExplanation = () => {},
   retryExplanation,
   recognitionRef,
@@ -63,9 +62,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   setIsListening,
   setVoiceStep,
   setCurrentListeningFor,
-  setCurrentActivityIndex,
-  setCurrentTaskIndex,
-  // IDs de tareas seleccionadas
   selectedTaskIds = [],
   autoSendVoice,
 }) => {
@@ -113,9 +109,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
     // Si hay tareas seleccionadas, filtrar
     if (stableSelectedTaskIds.size > 0) {
-      console.log(
-        `Filtrando actividades con ${stableSelectedTaskIds.size} tareas seleccionadas`,
-      );
 
       const filteredActivities = activitiesWithTasks
         .map((activity, activityIndex) => {
@@ -126,9 +119,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
           // Si esta actividad tiene tareas seleccionadas, incluirla
           if (tareasFiltradas.length > 0) {
-            console.log(
-              `Actividad ${activityIndex + 1}: "${activity.actividadTitulo}" tiene ${tareasFiltradas.length} tareas seleccionadas`,
-            );
+
             return {
               ...activity,
               tareas: tareasFiltradas,
@@ -138,13 +129,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
         })
         .filter((activity): activity is any => activity !== null);
 
-      console.log(
-        `Resultado: ${filteredActivities.length} actividades con tareas seleccionadas`,
-      );
-      console.log(
-        `Tareas seleccionadas IDs:`,
-        Array.from(stableSelectedTaskIds),
-      );
+
       return filteredActivities;
     } else {
       return activitiesWithTasks;
@@ -189,9 +174,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   // FUNCIÓN PARA EDITAR UNA TAREA DESDE EL RESUMEN
   const handleEditTask = useCallback(
     (activityIndex: number, taskIndex: number) => {
-      console.log(
-        `Editando tarea: Actividad ${activityIndex}, Tarea ${taskIndex}`,
-      );
 
       // Detener cualquier reproducción de audio
       if (window.speechSynthesis) {
