@@ -38,7 +38,6 @@ import {
   Brain,
   Check,
   Clock,
-  Menu,
 } from "lucide-react";
 import { getDisplayName } from "@/util/utils-chat";
 import { useVoiceSynthesis } from "@/components/hooks/use-voice-synthesis";
