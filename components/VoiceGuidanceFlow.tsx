@@ -109,7 +109,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
     // Si hay tareas seleccionadas, filtrar
     if (stableSelectedTaskIds.size > 0) {
-
       const filteredActivities = activitiesWithTasks
         .map((activity, activityIndex) => {
           // Filtrar solo las tareas seleccionadas de esta actividad
@@ -119,7 +118,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
           // Si esta actividad tiene tareas seleccionadas, incluirla
           if (tareasFiltradas.length > 0) {
-
             return {
               ...activity,
               tareas: tareasFiltradas,
@@ -128,7 +126,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
           return null;
         })
         .filter((activity): activity is any => activity !== null);
-
 
       return filteredActivities;
     } else {
@@ -174,7 +171,6 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   // FUNCIÓN PARA EDITAR UNA TAREA DESDE EL RESUMEN
   const handleEditTask = useCallback(
     (activityIndex: number, taskIndex: number) => {
-
       // Detener cualquier reproducción de audio
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
@@ -358,18 +354,24 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center ${
-        theme === "dark" ? "bg-black/80" : "bg-white/95"
-      }`}
+      className={`fixed inset-0 z-50 flex items-center justify-center 
+  p-4 sm:p-8 lg:p-12
+  ${
+    theme === "dark"
+      ? "bg-black/80 backdrop-blur-sm"
+      : "bg-white/95 backdrop-blur-sm"
+  }`}
     >
       <div
-        className={`max-w-2xl w-full mx-4 rounded-xl overflow-hidden shadow-2xl ${
-          theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
-        }`}
+        className={`w-full max-w-3xl 
+  rounded-2xl overflow-hidden shadow-2xl 
+  flex flex-col 
+  max-h-[calc(100dvh-2rem)] 
+  sm:max-h-[calc(100dvh-4rem)]
+  ${theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"}`}
       >
-        {/* Header */}
         <div
-          className={`p-4 border-b ${
+          className={`px-3 sm:px-5 py-3 sm:py-4 border-b shrink-0 ${
             theme === "dark"
               ? "border-[#2a2a2a] bg-[#252527]"
               : "border-gray-200 bg-gray-50"
@@ -516,7 +518,8 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
           )}
         </div>
 
-        <div className="p-6">
+        {/* Body — overflow-y-auto + flex-1 permiten scroll en móvil sin romper sm+ */}
+        <div className="p-6 overflow-y-auto flex-1">
           {voiceStep === "confirm-start" && (
             <ConfirmStartStep
               activitiesWithTasks={filteredActivitiesWithTasks}
@@ -663,14 +666,14 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
           {voiceStep === "sending"}
         </div>
 
-        {/* BOTONES DE PAUSA/RESUMEN EN LA PARTE INFERIOR */}
+        {/* Footer — shrink-0 evita que desaparezca cuando el body hace scroll */}
         {(voiceStep === "activity-presentation" ||
           voiceStep === "task-presentation" ||
           voiceStep === "listening-explanation" ||
           voiceStep === "processing-explanation" ||
           voiceStep === "confirmation") && (
           <div
-            className={`p-3 border-t ${
+            className={`p-3 border-t shrink-0 ${
               theme === "dark"
                 ? "border-[#2a2a2a] bg-[#252527]"
                 : "border-gray-200 bg-gray-50"

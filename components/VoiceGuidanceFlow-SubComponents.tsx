@@ -43,49 +43,42 @@ export const ConfirmStartStep: React.FC<{
   theme: string;
   confirmStartVoiceMode: () => void;
   cancelVoiceMode: () => void;
-}> = ({
-  activitiesWithTasks,
-  totalActivities,
-  totalTasks,
-  theme,
-  confirmStartVoiceMode,
-  cancelVoiceMode,
-}) => (
-  <div className="space-y-4">
-    <div className="grid grid-cols-2 gap-1.5">
-      <div
-        className={`p-2 rounded-md ${
-          theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-        }`}
-      >
-        <div className="flex items-center gap-1">
-          <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
-          <span className="text-xs">Actividades</span>
+}> = ({ activitiesWithTasks, totalActivities, totalTasks, theme, confirmStartVoiceMode, cancelVoiceMode }) => (
+  <div className="space-y-2 sm:space-y-4">
+    {/* Métricas en 3 columnas para incluir tiempo total */}
+    <div className="grid grid-cols-3 gap-1.5">
+      <div className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+        <div className="flex items-center gap-1 mb-0.5">
+          <FolderOpen className="w-3 h-3 text-blue-500" />
+          <span className="text-[10px] sm:text-xs text-gray-500">Act.</span>
         </div>
-        <div className="text-lg font-semibold leading-tight">
-          {totalActivities}
-        </div>
+        <div className="text-base sm:text-lg font-semibold leading-none">{totalActivities}</div>
       </div>
-
-      <div
-        className={`p-2 rounded-md ${
-          theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-        }`}
-      >
-        <div className="flex items-center gap-1">
-          <ListChecks className="w-3.5 h-3.5 text-green-500" />
-          <span className="text-xs">Tareas</span>
+      <div className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+        <div className="flex items-center gap-1 mb-0.5">
+          <ListChecks className="w-3 h-3 text-green-500" />
+          <span className="text-[10px] sm:text-xs text-gray-500">Tareas</span>
         </div>
-        <div className="text-lg font-semibold leading-tight">{totalTasks}</div>
+        <div className="text-base sm:text-lg font-semibold leading-none">{totalTasks}</div>
+      </div>
+      <div className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+        <div className="flex items-center gap-1 mb-0.5">
+          <Clock className="w-3 h-3 text-purple-500" />
+          <span className="text-[10px] sm:text-xs text-gray-500">Min.</span>
+        </div>
+        <div className="text-base sm:text-lg font-semibold leading-none">
+          {activitiesWithTasks.reduce(
+            (sum, act) => sum + act.tareas.reduce((s, t) => s + t.duracionMin, 0),
+            0,
+          )}
+        </div>
       </div>
     </div>
 
     {/* Lista de tareas */}
     <div
-      className={`max-h-72 overflow-y-auto rounded-lg border scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-gray-400/40 hover:scrollbar-thumb-gray-400/70 ${
-        theme === "dark"
-          ? "border-[#2a2a2a] scrollbar-thumb-white/20"
-          : "border-gray-200"
+      className={`max-h-40 sm:max-h-72 overflow-y-auto rounded-lg border ${
+        theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
       }`}
     >
       {activitiesWithTasks.map((activity, aIdx) => (
@@ -95,37 +88,30 @@ export const ConfirmStartStep: React.FC<{
             theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
           }`}
         >
-          <div
-            className={`p-3 ${
-              theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <FolderOpen className="w-4 h-4 text-blue-500" />
-              <span className="font-medium text-sm truncate">
+          {/* Cabecera actividad */}
+          <div className={`px-2.5 py-1.5 sm:p-3 ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+            <div className="flex items-center gap-1.5">
+              <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+              <span className="font-medium text-[11px] sm:text-sm truncate flex-1">
                 {activity.actividadTitulo}
               </span>
-              <span className="text-xs text-gray-500 ml-auto shrink-0">
-                {activity.actividadHorario}
-              </span>
+              <span className="text-[10px] text-gray-500 shrink-0">{activity.actividadHorario}</span>
             </div>
           </div>
+
+          {/* Filas de tareas */}
           {activity.tareas.map((tarea, tIdx) => (
             <div
               key={tarea.id}
-              className={`p-3 flex items-center justify-between ${
+              className={`px-2.5 py-1.5 sm:p-3 flex items-center justify-between gap-2 ${
                 tIdx % 2 === 0
-                  ? theme === "dark"
-                    ? "bg-[#1a1a1a]"
-                    : "bg-white"
-                  : theme === "dark"
-                    ? "bg-[#1f1f1f]"
-                    : "bg-gray-50"
+                  ? theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
+                  : theme === "dark" ? "bg-[#1f1f1f]" : "bg-gray-50/60"
               }`}
             >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                  className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
                     tarea.prioridad === "ALTA"
                       ? "bg-red-500/20 text-red-500"
                       : tarea.prioridad === "MEDIA"
@@ -135,25 +121,13 @@ export const ConfirmStartStep: React.FC<{
                 >
                   {tIdx + 1}
                 </div>
-                <span className="text-sm truncate">{tarea.nombre}</span>
+                <span className="text-[11px] sm:text-sm truncate">{tarea.nombre}</span>
               </div>
-              <div className="flex items-center gap-2 shrink-0 ml-2">
-                <Badge
-                  variant={
-                    tarea.prioridad === "ALTA" ? "destructive" : "secondary"
-                  }
-                  className="text-xs"
-                >
-                  {tarea.prioridad}
-                </Badge>
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {tarea.duracionMin}m
-                </span>
+              <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-gray-400">
+                <Clock className="w-2.5 h-2.5" />
+                {tarea.duracionMin}m
                 {tarea.diasPendiente > 0 && (
-                  <span className="text-xs text-gray-500">
-                    {tarea.diasPendiente}d
-                  </span>
+                  <span className="hidden sm:inline">{tarea.diasPendiente}d</span>
                 )}
               </div>
             </div>
@@ -162,34 +136,19 @@ export const ConfirmStartStep: React.FC<{
       ))}
     </div>
 
-    {/* Tiempo total */}
-    <div
-      className={`p-3 rounded-lg ${
-        theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-      } flex justify-between items-center`}
-    >
-      <span className="text-sm text-gray-400">Tiempo total estimado:</span>
-      <span className="font-bold text-[#6841ea]">
-        {activitiesWithTasks.reduce(
-          (sum, act) => sum + act.tareas.reduce((s, t) => s + t.duracionMin, 0),
-          0,
-        )}{" "}
-        min
-      </span>
-    </div>
-
-    <div className="flex gap-3 justify-center pt-2">
+    {/* Acciones */}
+    <div className="flex gap-2">
       <Button
         onClick={confirmStartVoiceMode}
-        className="bg-[#6841ea] hover:bg-[#5a36d4] px-6"
+        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm"
       >
-        <Play className="w-4 h-4 mr-2" />
+        <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
         Comenzar
       </Button>
       <Button
         variant="outline"
         onClick={cancelVoiceMode}
-        className="bg-transparent"
+        className="bg-transparent h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm"
       >
         Cancelar
       </Button>
@@ -208,80 +167,57 @@ export const ActivityPresentationStep: React.FC<{
   theme: string;
   isSpeaking: boolean;
   speakTaskByIndices: (activityIndex: number, taskIndex: number) => void;
-}> = ({
-  currentActivity,
-  currentActivityIndex,
-  totalActivities,
-  theme,
-  isSpeaking,
-  isPaused,
-  speakTaskByIndices,
-}) => (
-  <div className="space-y-4">
+}> = ({ currentActivity, currentActivityIndex, totalActivities, theme, isSpeaking, speakTaskByIndices }) => (
+  <div className="space-y-3 sm:space-y-4">
     <div
-      className={`p-4 rounded-lg ${
+      className={`p-3 sm:p-4 rounded-lg ${
         theme === "dark"
           ? "bg-blue-900/20 border border-blue-500/20"
           : "bg-blue-50 border border-blue-200"
       }`}
     >
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2 mb-2">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 ${
             theme === "dark" ? "bg-blue-500/20" : "bg-blue-100"
           }`}
         >
-          <FolderOpen className="w-4 h-4 text-blue-500" />
+          <FolderOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500" />
         </div>
-        <div>
-          <h4 className="font-bold">
+        <div className="min-w-0">
+          <h4 className="font-bold text-xs sm:text-base">
             Actividad {currentActivityIndex + 1} de {totalActivities}
           </h4>
-          <p className="text-xs text-gray-500">
+          <p className="text-[10px] sm:text-xs text-gray-500 truncate">
             {currentActivity.actividadHorario}
           </p>
         </div>
       </div>
-      <h3 className="font-bold text-lg mb-2">
-        {currentActivity.actividadTitulo}
-      </h3>
-      <div className="flex items-center gap-3 text-sm">
-        <span
-          className={`px-2 py-1 rounded ${
-            theme === "dark" ? "bg-blue-900/30" : "bg-blue-100"
-          }`}
-        >
-          {currentActivity.tareas.length} tarea
-          {currentActivity.tareas.length !== 1 ? "s" : ""}
+
+      <h3 className="font-bold text-sm sm:text-lg mb-2">{currentActivity.actividadTitulo}</h3>
+
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        <span className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${theme === "dark" ? "bg-blue-900/30" : "bg-blue-100"}`}>
+          {currentActivity.tareas.length} tarea{currentActivity.tareas.length !== 1 ? "s" : ""}
         </span>
-        <span
-          className={`px-2 py-1 rounded ${
-            theme === "dark" ? "bg-purple-900/30" : "bg-purple-100"
-          }`}
-        >
-          {currentActivity.tareas.reduce((sum, t) => sum + t.duracionMin, 0)}{" "}
-          min
+        <span className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs ${theme === "dark" ? "bg-purple-900/30" : "bg-purple-100"}`}>
+          {currentActivity.tareas.reduce((sum, t) => sum + t.duracionMin, 0)} min
         </span>
       </div>
     </div>
 
     <div className="text-center">
-      <p
-        className={`text-sm ${
-          theme === "dark" ? "text-gray-300" : "text-gray-600"
-        } mb-4`}
-      >
+      <p className={`text-xs ${theme === "dark" ? "text-gray-300" : "text-gray-600"} mb-3`}>
         Esta actividad tiene {currentActivity.tareas.length} tarea
         {currentActivity.tareas.length !== 1 ? "s" : ""} pendiente
-        {currentActivity.tareas.length !== 1 ? "s" : ""}. Comenzaré a
-        presentarlas.
+        {currentActivity.tareas.length !== 1 ? "s" : ""}.
       </p>
       <Button
         onClick={() => speakTaskByIndices(currentActivityIndex, 0)}
-        className="bg-[#6841ea] hover:bg-[#5a36d4]"
+        className="bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm w-full sm:w-auto"
         disabled={isSpeaking}
       >
-        <Play className="w-4 h-4 mr-2" />
+        <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
         Ver primera tarea
       </Button>
     </div>
@@ -310,119 +246,109 @@ export const TaskPresentationStep: React.FC<{
   theme,
   voiceStep,
   isSpeaking,
-  isPaused,
   startTaskExplanation,
   skipTask,
-}) => (
-  <div className="space-y-4">
-    <div
-      className={`p-3 rounded-lg ${
-        theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-      }`}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <FolderOpen className="w-4 h-4 text-blue-500" />
-        <span className="text-sm font-medium">
-          {currentActivity.actividadTitulo}
-        </span>
-      </div>
+}) => {
+  const hasExplanation = taskExplanations.find((exp) => exp.taskId === currentTask.id);
+  const isSkipped = hasExplanation?.explanation === "[Tarea saltada]";
 
-      <div
-        className={`p-3 rounded ${
-          theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
-        }`}
-      >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  currentTask.prioridad === "ALTA"
-                    ? "bg-red-500/20 text-red-500"
-                    : currentTask.prioridad === "MEDIA"
-                      ? "bg-yellow-500/20 text-yellow-500"
-                      : "bg-green-500/20 text-green-500"
-                }`}
-              >
-                {currentTaskIndex + 1}
-              </div>
-              <h4 className="font-bold">{currentTask.nombre}</h4>
-            </div>
-            <div className="flex gap-3 text-sm text-gray-500 ml-8">
-              <span className="flex items-center gap-1">
-                <Target className="w-3 h-3" />
-                {currentTask.prioridad}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3 h-3" />
-                {currentTask.duracionMin} min
-              </span>
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {currentTask.diasPendiente || 0} días
-              </span>
-            </div>
-          </div>
-          <Badge
-            variant={
-              currentTask.prioridad === "ALTA" ? "destructive" : "secondary"
-            }
-            className="text-xs shrink-0"
-          >
-            {currentTask.prioridad}
-          </Badge>
+  return (
+    <div className="space-y-2.5 sm:space-y-4">
+      <div className={`p-2.5 sm:p-3 rounded-lg ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+        {/* Actividad padre */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+          <span className="text-[11px] sm:text-sm font-medium truncate">
+            {currentActivity.actividadTitulo}
+          </span>
         </div>
 
-        {taskExplanations.find((exp) => exp.taskId === currentTask.id)
-          ?.explanation !== "[Tarea saltada]" &&
-          taskExplanations.find((exp) => exp.taskId === currentTask.id) && (
+        {/* Tarjeta tarea */}
+        <div className={`p-2.5 sm:p-3 rounded ${theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"}`}>
+          <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div
+                  className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold shrink-0 ${
+                    currentTask.prioridad === "ALTA"
+                      ? "bg-red-500/20 text-red-500"
+                      : currentTask.prioridad === "MEDIA"
+                        ? "bg-yellow-500/20 text-yellow-500"
+                        : "bg-green-500/20 text-green-500"
+                  }`}
+                >
+                  {currentTaskIndex + 1}
+                </div>
+                <h4 className="font-bold text-xs sm:text-base">{currentTask.nombre}</h4>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 text-[10px] sm:text-sm text-gray-500 ml-6 sm:ml-8">
+                <span className="flex items-center gap-0.5">
+                  <Target className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  {currentTask.prioridad}
+                </span>
+                <span className="flex items-center gap-0.5">
+                  <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  {currentTask.duracionMin}m
+                </span>
+                <span className="flex items-center gap-0.5">
+                  <Calendar className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  {currentTask.diasPendiente || 0}d
+                </span>
+              </div>
+            </div>
+            <Badge
+              variant={currentTask.prioridad === "ALTA" ? "destructive" : "secondary"}
+              className="text-[10px] px-1 sm:px-1.5 py-0.5 shrink-0 h-fit"
+            >
+              {currentTask.prioridad}
+            </Badge>
+          </div>
+
+          {hasExplanation && !isSkipped && (
             <div
-              className={`mt-3 p-2 rounded ${
+              className={`p-1.5 sm:p-2 rounded ${
                 theme === "dark"
                   ? "bg-green-900/20 border border-green-500/20"
                   : "bg-green-50 border border-green-200"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <Check className="w-3 h-3 text-green-500" />
-                <span className="text-xs font-medium">
-                  Explicación guardada
-                </span>
+              <div className="flex items-center gap-1.5">
+                <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-green-500" />
+                <span className="text-[10px] sm:text-xs font-medium">Explicación guardada</span>
               </div>
             </div>
           )}
+        </div>
       </div>
-    </div>
 
-    <div className="flex gap-3">
-      <Button
-        onClick={startTaskExplanation}
-        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-12"
-        disabled={isSpeaking}
-      >
-        <Mic className="w-4 h-4 mr-2" />
-        {taskExplanations.find((exp) => exp.taskId === currentTask.id)
-          ? "Corregir explicación"
-          : "Explicar esta tarea"}
-      </Button>
-      <Button
-        variant="outline"
-        onClick={skipTask}
-        className="h-12 bg-transparent"
-        disabled={isSpeaking}
-      >
-        <SkipForward className="w-4 h-4" />
-      </Button>
-    </div>
-
-    {voiceStep === "waiting-for-explanation" && (
-      <div className="text-center text-sm text-gray-500">
-        Presiona el botón para empezar a explicar esta tarea, o di "saltar" para
-        omitirla
+      <div className="flex gap-2">
+        <Button
+          onClick={startTaskExplanation}
+          className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-12 text-xs sm:text-sm"
+          disabled={isSpeaking}
+        >
+          <Mic className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
+          {hasExplanation && !isSkipped ? "Corregir" : "Explicar"}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={skipTask}
+          className="h-8 sm:h-12 px-2.5 sm:px-3 bg-transparent"
+          disabled={isSpeaking}
+          title="Saltar tarea"
+        >
+          <SkipForward className="w-3 h-3 sm:w-4 sm:h-4" />
+        </Button>
       </div>
-    )}
-  </div>
-);
+
+      {voiceStep === "waiting-for-explanation" && (
+        <p className="text-center text-[10px] sm:text-sm text-gray-500">
+          Presiona el botón para explicar esta tarea, o di "saltar" para omitirla.
+        </p>
+      )}
+    </div>
+  );
+};
 
 // ============================================
 // LISTENING EXPLANATION STEP
@@ -463,7 +389,6 @@ export const ListeningExplanationStep: React.FC<{
 
     if (voiceTranscript && voiceTranscript.trim().length > 0) {
       setCountdown(3);
-
       countdownInterval = setInterval(() => {
         setCountdown((prev) => {
           if (prev === null || prev <= 1) {
@@ -476,15 +401,9 @@ export const ListeningExplanationStep: React.FC<{
 
       silenceTimer = setTimeout(() => {
         setCountdown(null);
-
-        // DETENER RECONOCIMIENTO Y PROCESAR
-        if (recognitionRef.current) {
-          recognitionRef.current.stop();
-        }
+        if (recognitionRef.current) recognitionRef.current.stop();
         setIsRecording(false);
         setIsListening(false);
-
-        // LLAMAR DIRECTAMENTE A processVoiceExplanation
         processVoiceExplanation(voiceTranscript);
       }, 3000);
     }
@@ -493,83 +412,70 @@ export const ListeningExplanationStep: React.FC<{
       if (silenceTimer) clearTimeout(silenceTimer);
       if (countdownInterval) clearInterval(countdownInterval);
     };
-  }, [
-    voiceTranscript,
-    processVoiceExplanation,
-    recognitionRef,
-    setIsRecording,
-    setIsListening,
-  ]);
+  }, [voiceTranscript, processVoiceExplanation, recognitionRef, setIsRecording, setIsListening]);
 
   return (
-    <div className="text-center space-y-4">
-      <div className="relative">
+    <div className="text-center space-y-2.5 sm:space-y-4">
+      {/* Ícono micrófono */}
+      <div className="relative w-14 h-14 sm:w-20 sm:h-20 mx-auto">
         <div
-          className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center ${
-            isValidating
-              ? "bg-blue-500/20 animate-spin"
-              : "bg-red-500/20 animate-pulse"
+          className={`w-full h-full rounded-full flex items-center justify-center ${
+            isValidating ? "bg-blue-500/20 animate-spin" : "bg-red-500/20 animate-pulse"
           }`}
         >
-          {isValidating ? (
-            <Loader2 className="w-10 h-10 text-blue-500" />
-          ) : (
-            <Mic className="w-10 h-10 text-red-500" />
-          )}
+          {isValidating
+            ? <Loader2 className="w-7 h-7 sm:w-10 sm:h-10 text-blue-500" />
+            : <Mic className="w-7 h-7 sm:w-10 sm:h-10 text-red-500" />
+          }
         </div>
-
         {!isValidating && (
           <div className="absolute inset-0 flex items-center justify-center">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="absolute w-24 h-24 rounded-full border-2 border-red-500 animate-ping"
+                className="absolute rounded-full border-2 border-red-500 animate-ping"
                 style={{
+                  width: `${i * 18 + 56}px`,
+                  height: `${i * 18 + 56}px`,
                   animationDelay: `${i * 0.2}s`,
-                  opacity: 0.5 - i * 0.1,
+                  opacity: 0.4 - i * 0.1,
                 }}
               />
             ))}
           </div>
         )}
-
-        {/* Countdown flotante debajo del micrófono */}
         {countdown !== null && !isValidating && (
-          <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
-            <div className="bg-[#6841ea] text-white text-xs font-bold px-3 py-1 rounded-full animate-pulse">
-              Enviando en {countdown}s
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
+            <div className="bg-[#6841ea] text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse whitespace-nowrap">
+              {countdown}s
             </div>
           </div>
         )}
       </div>
 
-      <h4 className="text-lg font-bold">
+      <h4 className="text-sm sm:text-lg font-bold">
         {isValidating ? "Validando..." : "Escuchando..."}
       </h4>
 
       {currentListeningFor && !isValidating && (
         <div
-          className={`p-3 rounded-lg ${
+          className={`px-2.5 py-1.5 sm:p-3 rounded-lg ${
             theme === "dark"
               ? "bg-blue-900/20 border border-blue-500/20"
               : "bg-blue-50 border border-blue-200"
           }`}
         >
           <p
-            className={`text-sm font-medium ${
+            className={`text-[10px] sm:text-sm font-medium truncate ${
               theme === "dark" ? "text-blue-300" : "text-blue-700"
             }`}
           >
-            Escuchando para: {currentListeningFor}
+            {currentListeningFor}
           </p>
         </div>
       )}
 
-      <p
-        className={`text-sm ${
-          theme === "dark" ? "text-gray-300" : "text-gray-600"
-        }`}
-      >
+      <p className={`text-[10px] sm:text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}>
         {isValidating
           ? "Validando tu explicación con el asistente..."
           : retryCount > 0
@@ -577,60 +483,52 @@ export const ListeningExplanationStep: React.FC<{
             : "Por favor, explica cómo resolverás esta tarea."}
       </p>
 
-      {/* INDICADOR DE GRABACIÓN ACTIVA - Cuando no hay transcript todavía */}
+      {/* Indicador grabando (sin transcript aún) */}
       {!voiceTranscript && !isValidating && (
         <div
-          className={`p-4 rounded-lg border-2 border-dashed ${
-            theme === "dark"
-              ? "border-red-500/30 bg-red-900/10"
-              : "border-red-300 bg-red-50"
+          className={`p-2.5 sm:p-4 rounded-lg border-2 border-dashed ${
+            theme === "dark" ? "border-red-500/30 bg-red-900/10" : "border-red-300 bg-red-50"
           }`}
         >
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="flex gap-1">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <div className="flex gap-0.5">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="w-1 bg-red-500 rounded-full animate-pulse"
+                  className="w-0.5 bg-red-500 rounded-full animate-pulse"
                   style={{
-                    height: `${12 + (i % 3) * 8}px`,
+                    height: `${10 + (i % 3) * 6}px`,
                     animationDelay: `${i * 0.15}s`,
                     animationDuration: "0.8s",
                   }}
                 />
               ))}
             </div>
-            <span className="text-sm font-medium text-red-500">
-              Grabando... Habla ahora
-            </span>
+            <span className="text-xs font-medium text-red-500">Grabando...</span>
           </div>
-          <p className="text-xs text-center text-gray-500">
+          <p className="text-[10px] text-center text-gray-500 hidden sm:block">
             Tu voz se está capturando. El texto aparecerá aquí en tiempo real.
           </p>
         </div>
       )}
 
-      {/* CONTADOR DE SILENCIO GRANDE Y PROMINENTE */}
+      {/* Countdown de silencio */}
       {countdown !== null && !isValidating && voiceTranscript && (
         <div
-          className={`p-4 rounded-lg border-2 ${
-            theme === "dark"
-              ? "border-[#6841ea] bg-[#6841ea]/10"
-              : "border-[#6841ea] bg-[#6841ea]/5"
+          className={`p-2.5 sm:p-4 rounded-lg border-2 ${
+            theme === "dark" ? "border-[#6841ea] bg-[#6841ea]/10" : "border-[#6841ea] bg-[#6841ea]/5"
           }`}
         >
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <Clock className="w-5 h-5 text-[#6841ea] animate-pulse" />
-            <span className="text-lg font-bold text-[#6841ea]">
-              Auto-envío en {countdown} segundo{countdown !== 1 ? "s" : ""}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3 mb-1.5">
+            <Clock className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-[#6841ea] animate-pulse" />
+            <span className="text-xs sm:text-lg font-bold text-[#6841ea]">
+              Auto-envío en {countdown}s
             </span>
           </div>
-          <p className="text-xs text-center text-gray-500">
-            Detecté silencio. Si no hablas más, enviaré automáticamente tu
-            explicación.
+          <p className="text-[10px] text-center text-gray-500 hidden sm:block">
+            Detecté silencio. Si no hablas más, enviaré automáticamente tu explicación.
           </p>
-          {/* Barra de progreso visual */}
-          <div className="mt-3 w-full h-2 bg-gray-300 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="mt-1.5 sm:mt-3 w-full h-1 sm:h-2 bg-gray-300 dark:bg-gray-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-[#6841ea] transition-all duration-1000 ease-linear"
               style={{ width: `${(countdown / 3) * 100}%` }}
@@ -639,47 +537,41 @@ export const ListeningExplanationStep: React.FC<{
         </div>
       )}
 
-      {/* MOSTRAR TRANSCRIPT cuando existe */}
+      {/* Transcript */}
       {voiceTranscript && (
-        <div
-          className={`p-3 rounded ${
-            theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"
-          }`}
-        >
-          <p className="text-sm mb-2">{voiceTranscript}</p>
-          <p className="text-xs text-gray-500">
+        <div className={`p-2 sm:p-3 rounded text-left ${theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"}`}>
+          <p className="text-xs sm:text-sm">{voiceTranscript}</p>
+          <p className="text-[10px] text-gray-500 mt-1">
             {isValidating
               ? "Validando con IA..."
               : countdown !== null
-                ? "Timer activo - Continúa hablando para cancelar el auto-envío"
-                : "Continúa hablando o haz clic en un botón"}
+                ? "Continúa hablando para cancelar el auto-envío"
+                : "Haz clic en un botón para continuar"}
           </p>
         </div>
       )}
 
       {!isValidating && (
-        <div className="flex gap-3 justify-center">
+        <div className="flex gap-2 justify-center">
           <Button
             onClick={stopRecording}
-            className="bg-green-500 hover:bg-green-600 text-white"
+            className="flex-1 sm:flex-none bg-green-500 hover:bg-green-600 text-white h-8 sm:h-10 text-xs sm:text-sm"
           >
-            <Check className="w-4 h-4 mr-2" />
-            Enviar ahora
+            <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
+            Enviar
           </Button>
           <Button
             onClick={() => {
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-              }
+              if (recognitionRef.current) recognitionRef.current.stop();
               setIsRecording(false);
               setIsListening(false);
               setVoiceStep("waiting-for-explanation");
               setCurrentListeningFor("");
             }}
             variant="outline"
-            className="bg-red-500 hover:bg-red-600 text-white"
+            className="flex-1 sm:flex-none bg-red-500 hover:bg-red-600 text-white border-red-500 h-8 sm:h-10 text-xs sm:text-sm"
           >
-            <X className="w-4 h-4 mr-2" />
+            <X className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
             Cancelar
           </Button>
         </div>
@@ -698,65 +590,46 @@ export const ConfirmationStep: React.FC<{
   isSpeaking: boolean;
   isPaused: boolean;
   retryExplanation: () => void;
-}> = ({
-  currentTask,
-  voiceConfirmationText,
-  theme,
-  isSpeaking,
-  isPaused,
-  retryExplanation,
-}) => (
-  <div className="space-y-4">
+}> = ({ currentTask, voiceConfirmationText, theme, isSpeaking, retryExplanation }) => (
+  <div className="space-y-2.5 sm:space-y-4">
     <div
-      className={`p-4 rounded-lg ${
+      className={`p-2.5 sm:p-4 rounded-lg ${
         theme === "dark"
           ? "bg-blue-900/20 border border-blue-500/20"
           : "bg-blue-50 border border-blue-200"
       }`}
     >
-      <div className="flex items-center gap-2 mb-2">
-        <Volume2 className="w-5 h-5 text-blue-500" />
-        <span className="font-medium">Tu explicación para:</span>
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5">
+        <Volume2 className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-blue-500" />
+        <span className="font-medium text-xs sm:text-base">Tu explicación para:</span>
       </div>
-      <p className="text-sm font-medium mb-2">{currentTask.nombre}</p>
-      <div
-        className={`p-3 rounded ${
-          theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"
-        }`}
-      >
-        <p
-          className={`text-sm ${
-            theme === "dark" ? "text-gray-300" : "text-gray-600"
-          }`}
-        >
+      <p className="text-[11px] sm:text-sm font-medium mb-1.5">{currentTask.nombre}</p>
+      <div className={`p-2 sm:p-3 rounded ${theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"}`}>
+        <p className={`text-[11px] sm:text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}>
           {voiceConfirmationText}
         </p>
       </div>
     </div>
 
-    <p
-      className={`text-sm text-center ${
-        theme === "dark" ? "text-gray-300" : "text-gray-600"
-      }`}
-    >
+    <p className={`text-[10px] sm:text-sm text-center ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}>
       ¿Confirmas esta explicación? Di "sí" para confirmar o "no" para corregir.
     </p>
 
-    <div className="flex gap-3">
+    <div className="flex gap-2">
       <Button
-        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4]"
+        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-11 text-xs sm:text-sm"
         disabled={isSpeaking}
       >
-        <Check className="w-4 h-4 mr-2" />
+        <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
         Sí, confirmar
       </Button>
       <Button
         variant="outline"
         onClick={retryExplanation}
-        className="flex-1 bg-transparent"
+        className="flex-1 bg-transparent h-8 sm:h-11 text-xs sm:text-sm"
         disabled={isSpeaking}
       >
-        <RotateCcw className="w-4 h-4 mr-2" />
+        <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
         No, corregir
       </Button>
     </div>
@@ -776,121 +649,100 @@ export const SummaryStep: React.FC<{
   cancelVoiceMode: () => void;
   onEditTask: (activityIndex: number, taskIndex: number) => void;
   finishVoiceMode: () => void;
-}> = ({
-  activitiesWithTasks,
-  taskExplanations,
-  totalTasks,
-  theme,
-  isSpeaking,
-  isPaused,
-  cancelVoiceMode,
-  onEditTask,
-  finishVoiceMode,
-}) => (
-  <div className="space-y-4">
-    <div className="text-center">
+}> = ({ activitiesWithTasks, taskExplanations, totalTasks, theme, isSpeaking, finishVoiceMode }) => {
+  const completedCount = taskExplanations.filter(
+    (exp) => exp.explanation !== "[Tarea saltada]",
+  ).length;
+
+  return (
+    <div className="space-y-2.5 sm:space-y-4">
+      <div className="text-center">
+        <div
+          className={`w-12 h-12 sm:w-16 sm:h-16 rounded-full mx-auto flex items-center justify-center ${
+            theme === "dark" ? "bg-green-900/20" : "bg-green-100"
+          }`}
+        >
+          <Check className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
+        </div>
+        <h4 className="text-sm sm:text-lg font-bold mt-2">¡Todas las tareas explicadas!</h4>
+        <p className={`text-[10px] sm:text-sm ${theme === "dark" ? "text-gray-300" : "text-gray-600"} mt-0.5`}>
+          Has completado {completedCount} de {totalTasks} tareas.
+        </p>
+      </div>
+
+      {/* Lista resumen */}
       <div
-        className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center ${
-          theme === "dark" ? "bg-green-900/20" : "bg-green-100"
+        className={`max-h-36 sm:max-h-60 overflow-y-auto rounded-lg border ${
+          theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
         }`}
       >
-        <Check className="w-8 h-8 text-green-500" />
-      </div>
-      <h4 className="text-lg font-bold mt-3">¡Todas las tareas explicadas!</h4>
-      <p
-        className={`text-sm ${
-          theme === "dark" ? "text-gray-300" : "text-gray-600"
-        } mt-1`}
-      >
-        Has completado{" "}
-        {
-          taskExplanations.filter(
-            (exp) => exp.explanation !== "[Tarea saltada]",
-          ).length
-        }{" "}
-        de {totalTasks} tareas.
-      </p>
-    </div>
+        {activitiesWithTasks.map((activity) => {
+          const activityExplanations = taskExplanations.filter(
+            (exp) =>
+              exp.activityTitle === activity.actividadTitulo &&
+              exp.explanation !== "[Tarea saltada]",
+          );
+          if (activityExplanations.length === 0) return null;
 
-    <div
-      className={`max-h-60 overflow-y-auto rounded-lg border ${
-        theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
-      }`}
-    >
-      {activitiesWithTasks.map((activity) => {
-        const activityExplanations = taskExplanations.filter(
-          (exp) =>
-            exp.activityTitle === activity.actividadTitulo &&
-            exp.explanation !== "[Tarea saltada]",
-        );
-
-        if (activityExplanations.length === 0) return null;
-
-        return (
-          <div key={activity.actividadId} className="border-b border-[#2a2a2a]">
+          return (
             <div
-              className={`p-3 ${
-                theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
-              }`}
+              key={activity.actividadId}
+              className={`border-b last:border-b-0 ${theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"}`}
             >
-              <div className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-blue-500" />
-                <span className="font-medium text-sm">
-                  {activity.actividadTitulo}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {activityExplanations.length} de {activity.tareas.length}
-                </Badge>
-              </div>
-            </div>
-            {activityExplanations.map((exp, tIdx) => (
-              <div
-                key={exp.taskId}
-                className={`p-3 ${
-                  tIdx % 2 === 0
-                    ? theme === "dark"
-                      ? "bg-[#1a1a1a]"
-                      : "bg-white"
-                    : theme === "dark"
-                      ? "bg-[#252527]"
-                      : "bg-gray-50"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <Check
-                    className={`w-3 h-3 ${
-                      exp.confirmed ? "text-green-500" : "text-yellow-500"
-                    }`}
-                  />
-                  <span className="font-medium text-sm truncate">
-                    {exp.taskName}
+              <div className={`px-2.5 py-1.5 sm:p-3 ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}>
+                <div className="flex items-center gap-1.5">
+                  <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+                  <span className="font-medium text-[11px] sm:text-sm truncate flex-1">
+                    {activity.actividadTitulo}
                   </span>
-                  <Badge variant="outline" className="text-xs">
-                    {exp.priority}
-                  </Badge>
+                  <span className="text-[10px] text-gray-500 shrink-0">
+                    {activityExplanations.length}/{activity.tareas.length}
+                  </span>
                 </div>
-                <p
-                  className={`text-xs ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-600"
-                  } ml-5`}
-                >
-                  {exp.explanation}
-                </p>
               </div>
-            ))}
-          </div>
-        );
-      })}
-    </div>
 
-    <div className="flex gap-3">
+              {activityExplanations.map((exp, tIdx) => (
+                <div
+                  key={exp.taskId}
+                  className={`px-2.5 py-1.5 sm:p-3 ${
+                    tIdx % 2 === 0
+                      ? theme === "dark" ? "bg-[#1a1a1a]" : "bg-white"
+                      : theme === "dark" ? "bg-[#252527]" : "bg-gray-50/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <Check
+                      className={`w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 ${
+                        exp.confirmed ? "text-green-500" : "text-yellow-500"
+                      }`}
+                    />
+                    <span className="font-medium text-[10px] sm:text-sm truncate flex-1">
+                      {exp.taskName}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] hidden sm:flex">
+                      {exp.priority}
+                    </Badge>
+                  </div>
+                  <p
+                    className={`text-[10px] sm:text-xs ml-4 sm:ml-5 line-clamp-1 ${
+                      theme === "dark" ? "text-gray-400" : "text-gray-600"
+                    }`}
+                  >
+                    {exp.explanation}
+                  </p>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
       <Button
         onClick={finishVoiceMode}
-        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4]"
+        className="w-full bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-11 text-xs sm:text-sm"
         disabled={isSpeaking}
       >
-        enviar y comenzar jornada
+        Enviar y comenzar jornada
       </Button>
     </div>
-  </div>
-);
+  );
+};

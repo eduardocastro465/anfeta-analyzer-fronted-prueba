@@ -285,13 +285,14 @@ export function TasksPanelWithDescriptions({
               : "bg-white border-gray-200"
           }`}
         >
-          {/* Header */}
+          {/* Header — en móvil apilamos la fila de badges debajo del título */}
           <div
-            className={`px-3 py-2 border-b bg-[#6841ea]/10 flex justify-between items-center ${
+            className={`px-3 py-2 border-b bg-[#6841ea]/10 ${
               theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
             }`}
           >
-            <div className="flex items-center gap-3">
+            {/* Fila superior: título + timestamp */}
+            <div className="flex justify-between items-center">
               <h4
                 className={`font-medium text-xs flex items-center gap-2 uppercase tracking-wide ${
                   theme === "dark" ? "text-gray-200" : "text-gray-800"
@@ -301,13 +302,14 @@ export function TasksPanelWithDescriptions({
                 Tareas del Día ({estadisticas.totalTareas})
               </h4>
               {ultimaActualizacion && (
-                <span className="text-[10px] text-gray-500">
+                <span className="text-[10px] text-gray-500 hidden sm:inline">
                   Actualizado: {ultimaActualizacion.toLocaleTimeString()}
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Badges — fila separada en móvil para que no se solapen */}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {estadisticas.tareasBloqueadas > 0 && (
                 <UIBadge
                   variant="secondary"
@@ -328,6 +330,13 @@ export function TasksPanelWithDescriptions({
               >
                 {estadisticas.tareasSinDescripcion} Pendientes
               </UIBadge>
+
+              {/* Timestamp visible solo en móvil (debajo de los badges) */}
+              {ultimaActualizacion && (
+                <span className="text-[10px] text-gray-500 sm:hidden">
+                  {ultimaActualizacion.toLocaleTimeString()}
+                </span>
+              )}
             </div>
           </div>
 
@@ -340,8 +349,8 @@ export function TasksPanelWithDescriptions({
                   : "bg-blue-50 text-blue-700"
               }`}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="w-4 h-4" />
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <FileText className="w-4 h-4 shrink-0" />
                 <strong>
                   {estadisticas.tareasSinDescripcion} tareas necesitan
                   descripción
@@ -456,15 +465,15 @@ function ActivityWithDescriptionItem({
         theme === "dark" ? "bg-[#252527]" : "bg-gray-50"
       }`}
     >
-      {/* Header de actividad */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
+      {/* Header de actividad — en móvil el badge de horario baja a su propia línea */}
+      <div className="flex items-start justify-between mb-2 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div
-            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${badgeColor}`}
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${badgeColor}`}
           >
             {index + 1}
           </div>
-          <div className="max-w-[70%]">
+          <div className="min-w-0">
             <h5
               className={`font-medium text-sm line-clamp-2 ${
                 theme === "dark" ? "text-gray-200" : "text-gray-800"
@@ -481,7 +490,7 @@ function ActivityWithDescriptionItem({
         </div>
         <UIBadge
           variant="outline"
-          className={`text-xs flex-shrink-0 ${
+          className={`text-xs shrink-0 ${
             theme === "dark"
               ? "border-[#2a2a2a] text-gray-400"
               : "border-gray-300 text-gray-600"
@@ -681,9 +690,10 @@ function TaskWithDescriptionItem({
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
+            {/* Nombre + badge prioridad — en móvil la prioridad baja si no cabe */}
+            <div className="flex items-start justify-between gap-2">
               <span
                 className={`text-sm line-clamp-2 ${
                   tarea.bloqueada
@@ -701,7 +711,7 @@ function TaskWithDescriptionItem({
                 variant={
                   tarea.prioridad === "ALTA" ? "destructive" : "secondary"
                 }
-                className={`text-[10px] flex-shrink-0 ${
+                className={`text-[10px] shrink-0 ${
                   tarea.prioridad === "ALTA"
                     ? "bg-red-500/20 text-red-500 border-red-500/30"
                     : theme === "dark"
@@ -733,7 +743,8 @@ function TaskWithDescriptionItem({
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
+            {/* Duración + días + estado — en móvil se envuelven si no caben */}
+            <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
               <div className="flex items-center gap-3">
                 <span
                   className={`${
@@ -781,7 +792,8 @@ function TaskWithDescriptionItem({
             {/* Descripción (solo si existe) — con botón Editar que abre modo voz */}
             {tarea.descripcion && (
               <div className="mt-2">
-                <div className="flex gap-2">
+                {/* Botones Ver/Re-dictar — se envuelven en móvil si no caben */}
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     size="sm"
                     variant="ghost"
