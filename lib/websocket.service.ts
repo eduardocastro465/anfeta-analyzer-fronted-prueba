@@ -1,7 +1,7 @@
 // lib/websocket.service.ts
 import { io, Socket } from 'socket.io-client';
 
-class WebSocketService {
+export class WebSocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Function[]> = new Map();
   private reconnectAttempts = 0;
@@ -18,13 +18,14 @@ class WebSocketService {
       return;
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_BASE_URL_BACK || 'http://localhost:4000';
+    const backendUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:4000';
     
     console.log(`Conectando a WebSocket: ${backendUrl}`);
     
     this.socket = io(backendUrl, {
       withCredentials: true,
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'], // 👈 CAMBIADO: incluir polling como fallback
+      path: '/socket.io', // 👈 NUEVO: especificar el path
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: this.reconnectDelay,

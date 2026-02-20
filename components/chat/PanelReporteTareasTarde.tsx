@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { PanelReporteTareasTardeProps, RevisionProcesada } from "@/lib/types";
 import { ReporteActividadesModal } from "../ReporteActividadesModal";
+import { wsService } from "@/lib/websocket.service"; // ✅ IMPORTAR WEBSOCKET
 
 export function PanelReporteTareasTarde({
   assistantAnalysis,
@@ -57,6 +58,31 @@ export function PanelReporteTareasTarde({
   const [guardandoReporte, setGuardandoReporte] = useState(false);
   const actualizandoRef = useRef(false);
   const currentUserEmail = userEmail || "";
+
+  // ✅ WEBSOCKET: Escuchar cambios en tareas reportadas
+  useEffect(() => {
+    if (!currentUserEmail) return;
+
+    console.log('🔌 Conectando WebSocket para PanelReporteTareasTarde...');
+    
+    // Escuchar cambios en tareas
+    wsService.on('cambios-tareas', (data:any) => {
+      console.log('🔄 Cambio detectado en tareas reportadas via WebSocket:', data);
+      // Recargar tareas cuando haya cambios
+      cargarTareasReportadas(false);
+    });
+
+    // Escuchar cambios específicos de reportes
+    wsService.on('reportes-actualizados', (data:any) => {
+      console.log('📋 Reportes actualizados via WebSocket:', data);
+      cargarTareasReportadas(false);
+    });
+
+    return () => {
+      wsService.off('cambios-tareas');
+      wsService.off('reportes-actualizados');
+    };
+  }, [currentUserEmail]);
 
   const INTERVALO_ACTUALIZACION_TAREAS = 3000;
 
@@ -265,14 +291,8 @@ export function PanelReporteTareasTarde({
     }
   }, [cargarTareasReportadas, onReportCompleted, mostrarAlertaMensaje]);
 
-  useEffect(() => {
-    if (mostrarModalReporte) return;
-    const interval = setInterval(
-      () => cargarTareasReportadas(false),
-      INTERVALO_ACTUALIZACION_TAREAS,
-    );
-    return () => clearInterval(interval);
-  }, [currentUserEmail, cargarTareasReportadas, mostrarModalReporte]);
+  // ✅ ELIMINADO: useEffect con setInterval para polling (línea ~170)
+  // ✅ REEMPLAZADO por WebSocket arriba
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
