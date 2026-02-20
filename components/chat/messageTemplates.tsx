@@ -118,8 +118,7 @@ export const analysisTemplates = {
     theme,
     analysis,
   }: MessageTemplateProps & { analysis: AssistantAnalysis }) => (
-    <div className="space-y-4">
-      {/* Grid de métricas — 3 cols en sm+, 1 col en xs si el valor es muy largo */}
+   <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2 mt-3">
         {/* ── Alta prioridad ── */}
         <div

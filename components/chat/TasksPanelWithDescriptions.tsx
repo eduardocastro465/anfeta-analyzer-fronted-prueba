@@ -159,6 +159,19 @@ export function TasksPanelWithDescriptions({
     return resultado;
   }, [assistantAnalysis, dataHash]);
 
+  useEffect(() => {
+    if (!actividadesConDescripcion.length) return;
+
+    const tareasPendientesIds = actividadesConDescripcion.flatMap((actividad) =>
+      actividad.tareasConDescripcion
+        .filter((t: any) => !t.tieneDescripcion)
+        .map((t: any) => t.id),
+    );
+
+    if (tareasPendientesIds.length > 0) {
+      setTareasSeleccionadas(new Set(tareasPendientesIds));
+    }
+  }, [actividadesConDescripcion]);
   // Calcular estadísticas
   const estadisticas = useMemo(() => {
     const totalTareas = actividadesConDescripcion.reduce(
@@ -349,7 +362,6 @@ export function TasksPanelWithDescriptions({
                   : "bg-blue-50 text-blue-700"
               }`}
             >
-              
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <FileText className="w-4 h-4 shrink-0" />
                 <strong>

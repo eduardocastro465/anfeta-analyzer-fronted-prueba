@@ -3,6 +3,7 @@ import { useState, useRef, useCallback } from "react";
 export const useVoiceSynthesis = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [rate, setRate] = useState(1.2);
+  const rateRef = useRef(1.2);
   const currentTextRef = useRef<string>("");
 
   const speak = useCallback(
@@ -18,7 +19,7 @@ export const useVoiceSynthesis = () => {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "es-MX";
-        utterance.rate = customRate ?? rate;
+        utterance.rate = customRate ?? rateRef.current;
 
         // Selección de voz
         const voices = window.speechSynthesis.getVoices();
@@ -41,7 +42,7 @@ export const useVoiceSynthesis = () => {
         window.speechSynthesis.speak(utterance);
       });
     },
-    [rate],
+    [],
   );
 
   const stop = useCallback(() => {
@@ -51,6 +52,7 @@ export const useVoiceSynthesis = () => {
 
   const changeRate = useCallback(
     (newRate: number) => {
+      rateRef.current = newRate; // ← actualizar ref primero
       setRate(newRate);
       if (currentTextRef.current && window.speechSynthesis.speaking) {
         speak(currentTextRef.current, newRate);

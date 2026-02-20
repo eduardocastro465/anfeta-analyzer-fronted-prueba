@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { MessageItem } from "./MessageItem";
 import { MessageListProps } from "@/lib/types";
 import { TypingIndicator } from "./PanelReporteTareasTarde";
@@ -15,6 +16,10 @@ export function MessageList({
   onVoiceMessageClick,
   scrollRef,
 }: ExtendedMessageListProps) {
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+useEffect(() => {
+  bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [messages, isTyping]);
   return (
     <div
       ref={scrollRef}
@@ -28,6 +33,7 @@ export function MessageList({
           onVoiceMessageClick={onVoiceMessageClick}
         />
       ))}
+      <div ref={bottomRef} />
 
       {isTyping && <TypingIndicator theme={theme} />}
     </div>

@@ -99,6 +99,7 @@ export function ChatBot({
   // ==================== HOOKS ====================
   const router = useRouter();
   const { toast } = useToast();
+  const isManuallyCancellingRef = useRef(false);
   const voiceRecognition = useVoiceRecognition();
   const voiceMode = useVoiceMode();
   const conversationHistory = useConversationHistory();
@@ -132,7 +133,7 @@ export function ChatBot({
   const [horaInicioReporteMañana] = useState("2:00 AM");
   const [horaFinReporteMañana] = useState("1:32 PM");
   const [horaInicioReporte] = useState("1:33 PM");
-  const [horaFinReporte] = useState("2:59 PM");
+  const [horaFinReporte] = useState("5:30 PM");
 
   // ==================== STATE: THEME ====================
   const [internalTheme, setInternalTheme] = useState<"light" | "dark">("dark");
@@ -749,6 +750,7 @@ export function ChatBot({
       }
     },
     onError: (error) => {
+      if (isManuallyCancellingRef.current) return;
       addMessage(
         "system",
         <div className="text-xs text-red-500">
@@ -871,6 +873,7 @@ export function ChatBot({
       }
     },
     onError: (error) => {
+      if (isManuallyCancellingRef.current) return;
       speakText(
         "Hubo un problema con la grabación. Por favor, intenta de nuevo.",
       );
@@ -1138,38 +1141,69 @@ export function ChatBot({
     voiceMode.setCurrentTaskIndex(0);
     setSelectedTaskIds([]);
     setFilteredActivitiesForVoice([]);
+
+    const explicadas = voiceMode.taskExplanations.filter(
+      (exp) => exp.explanation !== "[Tarea saltada]",
+    );
+    const saltadas = voiceMode.taskExplanations.filter(
+      (exp) => exp.explanation === "[Tarea saltada]",
+    );
+
+    // Verificar si el usuario es el único colaborador
+    const esSoloPersona = activitiesWithTasks.every(
+      (act) => act.colaboradores.length <= 1,
+    );
+
+    const hayTareasSinExplicar = esSoloPersona && saltadas.length > 0;
     addMessage(
       "bot",
-      <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+      <div
+        className={`p-4 rounded-lg border ${
+          hayTareasSinExplicar
+            ? "bg-yellow-500/10 border-yellow-500/20"
+            : "bg-green-500/10 border-green-500/20"
+        }`}
+      >
         <div className="flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-green-500" />
+          {hayTareasSinExplicar ? (
+            <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+          )}
           <div>
-            <span className="font-medium">¡Jornada iniciada!</span>
+            <span className="font-medium">
+              {hayTareasSinExplicar
+                ? "Tienes tareas sin reportar"
+                : "¡Jornada iniciada!"}
+            </span>
             <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-              Has explicado{" "}
-              {
-                voiceMode.taskExplanations.filter(
-                  (exp) => exp.explanation !== "[Tarea saltada]",
-                ).length
-              }{" "}
-              tareas correctamente. ¡Mucho éxito!
+              {hayTareasSinExplicar
+                ? `Eres el único responsable de ${saltadas.length} tarea${saltadas.length !== 1 ? "s" : ""} que saltaste. Te recomendamos explicarlas antes de comenzar.`
+                : `Has explicado ${explicadas.length} tarea${explicadas.length !== 1 ? "s" : ""} correctamente. ¡Mucho éxito!`}
             </p>
           </div>
         </div>
       </div>,
     );
+
     speakText(
-      "¡Perfecto! Tu jornada ha comenzado. Mucho éxito con tus tareas.",
+      hayTareasSinExplicar
+        ? `Atención: saltaste ${saltadas.length} tarea${saltadas.length !== 1 ? "s" : ""} y eres el único responsable. Te recomendamos explicarlas.`
+        : "¡Perfecto! Tu jornada ha comenzado. Mucho éxito con tus tareas.",
     );
   };
 
   const cancelVoiceMode = () => {
+    isManuallyCancellingRef.current = true;
     stopVoice();
     voiceRecognition.stopRecording();
     cancelVoiceRecording();
     voiceMode.cancelVoiceMode();
     setSelectedTaskIds([]);
     setFilteredActivitiesForVoice([]);
+    setTimeout(() => {
+      isManuallyCancellingRef.current = false; // ← limpiar después
+    }, 500);
   };
 
   const confirmStartVoiceMode = () => {
@@ -1608,10 +1642,10 @@ export function ChatBot({
         showAll: showAll,
       };
       const data = await obtenerActividadesConRevisiones(requestBody);
-      console.log("data", data);
       const colaboradores = extraerColaboradores(data);
       setColaboradoresUnicos(colaboradores);
       const adaptedData = adaptarDatosAnalisis(data);
+      console.log(adaptedData);
       assistantAnalysisRef.current = adaptedData;
       setAssistantAnalysis(adaptedData);
       setStep("ready");

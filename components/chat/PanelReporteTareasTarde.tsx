@@ -63,24 +63,27 @@ export function PanelReporteTareasTarde({
   useEffect(() => {
     if (!currentUserEmail) return;
 
-    console.log('🔌 Conectando WebSocket para PanelReporteTareasTarde...');
-    
+    console.log("🔌 Conectando WebSocket para PanelReporteTareasTarde...");
+
     // Escuchar cambios en tareas
-    wsService.on('cambios-tareas', (data:any) => {
-      console.log('🔄 Cambio detectado en tareas reportadas via WebSocket:', data);
+    wsService.on("cambios-tareas", (data: any) => {
+      console.log(
+        "🔄 Cambio detectado en tareas reportadas via WebSocket:",
+        data,
+      );
       // Recargar tareas cuando haya cambios
       cargarTareasReportadas(false);
     });
 
     // Escuchar cambios específicos de reportes
-    wsService.on('reportes-actualizados', (data:any) => {
-      console.log('📋 Reportes actualizados via WebSocket:', data);
+    wsService.on("reportes-actualizados", (data: any) => {
+      console.log("📋 Reportes actualizados via WebSocket:", data);
       cargarTareasReportadas(false);
     });
 
     return () => {
-      wsService.off('cambios-tareas');
-      wsService.off('reportes-actualizados');
+      wsService.off("cambios-tareas");
+      wsService.off("reportes-actualizados");
     };
   }, [currentUserEmail]);
 
@@ -390,6 +393,14 @@ export function PanelReporteTareasTarde({
         return;
       }
 
+      const emailDueño = tarea.explicacionVoz?.emailUsuario;
+      if (emailDueño && emailDueño !== currentUserEmail) {
+        mostrarAlertaMensaje(
+          `Esta tarea fue asignada a ${emailDueño.split("@")[0]} en la mañana`,
+        );
+        return;
+      }
+
       const reporte = Array.from(tareasReportadasMap.values()).find(
         (r) => r.pendienteId === tareaId || r.nombreTarea === tarea.nombre,
       );
@@ -474,7 +485,7 @@ export function PanelReporteTareasTarde({
 
   // ========== RENDER ==========
   return (
-    <div className="w-full animate-in slide-in-from-bottom-2 duration-300">
+    <div className="w-full max-w-lg mx-auto animate-in slide-in-from-bottom-2 duration-300">
       {/* Alerta flotante — ocupa todo el ancho en móvil */}
       {mostrarAlerta && (
         <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-300 sm:top-3 sm:left-auto sm:right-3 sm:max-w-sm">
@@ -961,6 +972,7 @@ function ActivityItem({
                     onToggleSeleccion={() => onToggleTarea(tarea)}
                     esActividadIndividual={esActividadIndividual}
                     colaboradoresReales={colaboradoresReales}
+                    currentUserEmail={currentUserEmail}
                   />
                 );
               })}
@@ -1145,6 +1157,7 @@ interface TareaPendienteProps {
   onToggleSeleccion: () => void;
   esActividadIndividual: boolean;
   colaboradoresReales: string[];
+  currentUserEmail: string;
 }
 
 function TareaPendiente({
@@ -1154,7 +1167,13 @@ function TareaPendiente({
   onToggleSeleccion,
   esActividadIndividual,
   colaboradoresReales,
+  currentUserEmail,
 }: TareaPendienteProps) {
+  const emailDueñoMañana = tarea.explicacionVoz?.emailUsuario || null;
+  const estaBloqueadaPorOtro = !!(
+    emailDueñoMañana && emailDueñoMañana !== currentUserEmail
+  );
+
   const tieneDescripcion = !!(
     tarea.descripcion &&
     typeof tarea.descripcion === "string" &&
@@ -1165,7 +1184,7 @@ function TareaPendiente({
     typeof tarea.queHizo === "string" &&
     tarea.queHizo.trim().length > 0
   );
-  const estaBloqueada = !tieneDescripcion;
+  const estaBloqueada = !tieneDescripcion || estaBloqueadaPorOtro;
   const estaExplicada = tieneDescripcion && tieneQueHizo;
 
   return (
@@ -1230,7 +1249,19 @@ function TareaPendiente({
 
           {/* Badges en fila con wrap */}
           <div className="flex flex-wrap items-center gap-1.5 mb-2">
-            {estaBloqueada ? (
+            {tarea.explicacionVoz?.emailUsuario &&
+              (tarea.explicacionVoz.emailUsuario === currentUserEmail ? (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+                  <User className="w-3 h-3" />
+                  Mi reporte
+                </span>
+              ) : (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  De {tarea.explicacionVoz.emailUsuario.split("@")[0]}
+                </span>
+              ))}
+            {estaBloqueadaPorOtro ? null : estaBloqueada ? (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1">
                 <X className="w-3 h-3" />
                 Sin descripción
