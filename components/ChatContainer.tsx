@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { validateSession, obtenerHistorialSidebar } from "@/lib/api";
 import type {
@@ -44,12 +44,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ChatBot } from "./chat-bot";
 import { obtenerMensajesConversacion } from "@/lib/historial.service";
-import { useReporteData } from "@/app/reporte-del-dia/hooks/useReporteData";
-import type {
-  Usuario,
-  Actividad,
-  DetalleView,
-} from "@/app/reporte-del-dia/types/reporteTypes";
 
 type ViewMode = "chat" | "reportes";
 
@@ -83,14 +77,6 @@ export function ChatContainer({
     return window.innerWidth < 768;
   });
 
-  // ESTADOS NUEVOS PARA DASHBOARD
-  const [currentDashboardView, setCurrentDashboardView] =
-    useState<DetalleView>("dashboard");
-  const [selectedDashboardUser, setSelectedDashboardUser] =
-    useState<Usuario | null>(null);
-  const [selectedDashboardActivity, setSelectedDashboardActivity] =
-    useState<Actividad | null>(null);
-
   const [mensajesRestaurados, setMensajesRestaurados] = useState<
     MensajeHistorial[]
   >([]);
@@ -104,15 +90,6 @@ export function ChatContainer({
   const [eliminando, setEliminando] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [verificandoConversacion, setVerificandoConversacion] = useState(false);
-
-  const {
-    datos: reporteData,
-    loading: loadingReportes,
-    error: errorReportes,
-    refreshing: refreshingReportes,
-    tiempoUltimaCarga,
-    cargarDatosReales,
-  } = useReporteData();
 
   const router = useRouter();
   const { toast } = useToast();
@@ -153,54 +130,12 @@ export function ChatContainer({
     {} as Record<string, ConversacionSidebar[]>,
   );
 
-  // HANDLER DE NAVEGACIÓN PARA DASHBOARD
-  const handleDashboardNavigate = useCallback(
-    (view: DetalleView, user?: Usuario, activity?: Actividad) => {
-      setCurrentDashboardView(view);
-      setSelectedDashboardUser(user || null);
-      setSelectedDashboardActivity(activity || null);
-    },
-    [],
-  );
-
-  const handleViewUser = useCallback(
-    (usuario: Usuario) => {
-      handleDashboardNavigate("usuario", usuario);
-    },
-    [handleDashboardNavigate],
-  );
-
-  const handleViewActivity = useCallback(
-    (actividad: Actividad, usuario: Usuario) => {
-      handleDashboardNavigate("actividad", usuario, actividad);
-    },
-    [handleDashboardNavigate],
-  );
-
-  const handleBackToDashboard = useCallback(() => {
-    handleDashboardNavigate("dashboard");
-  }, [handleDashboardNavigate]);
-
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
     if (typeof document !== "undefined") {
       document.documentElement.classList.toggle("dark", newTheme === "dark");
     }
-  };
-
-  const handleViewReports = () => {
-    if (colaborador.email === "jjohn@pprin.com") {
-      setViewMode("reportes");
-      handleDashboardNavigate("dashboard");
-      cargarDatosReales(true);
-    } else {
-      alert("Solo el administrador puede acceder a los reportes");
-    }
-  };
-
-  const handleBackToChat = () => {
-    setViewMode("chat");
   };
 
   useEffect(() => {
@@ -212,6 +147,8 @@ export function ChatContainer({
     const init = async () => {
       const user = await validateSession();
       if (!user) {
+        console.log("No hay usuario");
+        await onLogout();
         router.replace("/");
         return;
       }
@@ -548,9 +485,6 @@ export function ChatContainer({
     setConversacionAEliminar(null);
   };
 
- // ==================== RENDER ChatContainer ====================
-  // Solo se muestran los cambios — el resto del componente no cambia.
-
   return (
     <div
       className={`min-h-screen font-['Arial'] flex overflow-hidden ${
@@ -667,14 +601,20 @@ export function ChatContainer({
                             </p>
                             <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
                               {conv.updatedAt
-                                ? new Date(conv.updatedAt).toLocaleTimeString("es-MX", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                : new Date(conv.createdAt).toLocaleTimeString("es-MX", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
+                                ? new Date(conv.updatedAt).toLocaleTimeString(
+                                    "es-MX",
+                                    {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
+                                  )
+                                : new Date(conv.createdAt).toLocaleTimeString(
+                                    "es-MX",
+                                    {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    },
+                                  )}
                             </p>
                           </div>
                         </div>
@@ -806,24 +746,12 @@ export function ChatContainer({
         </button>
       )}
 
-      {/* ── ÁREA PRINCIPAL ───────────────────────────────────────── */}
-      {/*
-        CLAVES DEL FIX:
-        - `min-w-0` evita que un hijo con contenido ancho expanda este div
-          más allá del espacio disponible (problema clásico en flexbox).
-        - `overflow-hidden` contiene el desbordamiento horizontal.
-        - `max-w-full` como seguro adicional.
-      */}
       <div
         className={`
           flex-1 min-w-0 max-w-full overflow-hidden
           transition-all duration-300
           ${
-            isMobile
-              ? "ml-0"
-              : sidebarOpen
-                ? "ml-64 sm:ml-72 md:ml-80"
-                : "ml-0"
+            isMobile ? "ml-0" : sidebarOpen ? "ml-64 sm:ml-72 md:ml-80" : "ml-0"
           }
         `}
       >
