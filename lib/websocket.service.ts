@@ -54,6 +54,16 @@ export class WebSocketService {
       listeners.forEach((callback) => callback(data));
     });
 
+    // Eventos de Vosk — reenviar al sistema de listeners interno
+    this.socket.on("vosk-parcial", (data) => {
+      const listeners = this.listeners.get("vosk-parcial") || [];
+      listeners.forEach((cb) => cb(data));
+    });
+
+    this.socket.on("vosk-error", (data) => {
+      const listeners = this.listeners.get("vosk-error") || [];
+      listeners.forEach((cb) => cb(data));
+    });
     // Manejar desconexión
     this.socket.on("disconnect", (reason) => {
       if (reason === "io server disconnect") {
@@ -162,6 +172,24 @@ export class WebSocketService {
     }
   }
 
+  emitWhenReady(evento: string, datos: any, timeout = 3000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.socket?.connected) {
+        this.socket.emit(evento, datos);
+        return resolve();
+      }
+
+      const timer = setTimeout(() => {
+        reject(new Error(`Timeout esperando conexión para emitir: ${evento}`));
+      }, timeout);
+
+      this.socket?.once("connect", () => {
+        clearTimeout(timer);
+        this.socket?.emit(evento, datos);
+        resolve();
+      });
+    });
+  }
   /**
    * Verifica si el WebSocket está conectado
    */
