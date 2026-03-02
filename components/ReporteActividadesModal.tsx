@@ -6,7 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Clock,
   Mic,
@@ -16,6 +15,7 @@ import {
   AlertCircle,
   XCircle,
   Zap,
+  MicOff,
 } from "lucide-react";
 
 import type { ActividadDiaria } from "@/lib/types";
@@ -51,6 +51,9 @@ type PasoModal =
 
 type EstadoTarea = "pendiente" | "completada" | "no-completada";
 
+// ─── Constante para limitar reintentos de aclaración ─────────────────────────
+const MAX_INTENTOS_ACLARACION = 2;
+
 export function ReporteActividadesModal({
   isOpen,
   onOpenChange,
@@ -63,6 +66,8 @@ export function ReporteActividadesModal({
   actividadesConTareas = [],
   tareasReportadasMap = new Map(),
 }: ReporteActividadesModalProps) {
+  const isDark = theme === "dark";
+
   // ==================== ESTADOS ====================
   const [paso, setPaso] = useState<PasoModal>("inicial");
   const [indiceActual, setIndiceActual] = useState(0);
@@ -80,16 +85,21 @@ export function ReporteActividadesModal({
     string | null
   >(null);
 
+  // ─── FIX #1: contador de intentos de aclaración ──────────────────────────
+  const intentosAclaracionRef = useRef(0);
+
   // ==================== REFS ====================
   const isProcessingRef = useRef(false);
+  // ─── Guard para ignorar callbacks async que llegan después de cerrar ──────
+  const isModalOpenRef = useRef(false);
+  // ─── Registro de timeouts pendientes para cancelarlos al cerrar ──────────
+  const pendingTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const pasoActualRef = useRef<PasoModal>(paso);
   const indiceRef = useRef(indiceActual);
   const speakRef = useRef<(text: string) => Promise<void>>(async () => {});
   const stopVoiceRef = useRef<() => void>(() => {});
   const startRecordingRef = useRef<() => void>(() => {});
   const cancelRecordingRef = useRef<() => void>(() => {});
-
-  // Ref para el callback onFinal de Vosk — siempre fresco, evita stale closures
   const voskFinalCallbackRef = useRef<(text: string) => void>(() => {});
 
   // ==================== HOOKS DE VOZ ====================
@@ -108,15 +118,30 @@ export function ReporteActividadesModal({
     silenceThresholdMs: 3000,
     onFinal: (text) => voskFinalCallbackRef.current(text),
     onError: (err) => {
+      if (!isModalOpenRef.current) return;
       setErrorValidacion(err.message || "Error en Vosk");
-      setTimeout(() => {
+      safeTimeout(() => {
+        if (!isModalOpenRef.current) return;
         setErrorValidacion(null);
         setPaso("preguntando-que-hizo");
       }, 3000);
     },
   });
 
-  // ==================== SINCRONIZAR REFS ====================
+  // ─── Helper: setTimeout que se auto-cancela si el modal se cerró ─────────
+  const safeTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(() => {
+      if (!isModalOpenRef.current) return;
+      fn();
+    }, ms);
+    pendingTimeoutsRef.current.push(id);
+    return id;
+  }, []);
+
+  // ==================== SYNC REFS ====================
+  useEffect(() => {
+    isModalOpenRef.current = isOpen;
+  }, [isOpen]);
   useEffect(() => {
     pasoActualRef.current = paso;
   }, [paso]);
@@ -129,49 +154,47 @@ export function ReporteActividadesModal({
   useEffect(() => {
     stopVoiceRef.current = stopVoice;
   }, [stopVoice]);
-
-  // Enrutar start/cancel a Vosk
   useEffect(() => {
-    startRecordingRef.current = () => {
-      startRealtime();
-    };
-    cancelRecordingRef.current = () => {
-      cancelRealtime();
-    };
+    startRecordingRef.current = () => startRealtime();
+    cancelRecordingRef.current = () => cancelRealtime();
   }, [startRealtime, cancelRealtime]);
 
-  // Mantener el callback de Vosk siempre actualizado con las funciones más recientes
-  // Sin deps intencionalmente → corre cada render para que nunca quede stale
-  useEffect(() => {
-    voskFinalCallbackRef.current = async (text: string) => {
-      if (pasoActualRef.current === "escuchando-motivo") {
-        await procesarMotivo(text);
-      } else {
-        await procesarRespuesta(text, pasoActualRef.current);
-      }
-    };
-  });
-
-  // Precargar modelo Vosk cuando el modal abre
-  useEffect(() => {
-    if (isOpen && voskStatus === "idle") {
-      loadModel().catch(() => {});
+  const handleVoskFinal = useCallback((text: string) => {
+    if (pasoActualRef.current === "escuchando-motivo") {
+      procesarMotivoRef.current(text);
+    } else {
+      procesarRespuestaRef.current(text, pasoActualRef.current);
     }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    voskFinalCallbackRef.current = handleVoskFinal;
+  }, [handleVoskFinal]);
+
+  useEffect(() => {
+    if (isOpen && voskStatus === "idle") loadModel().catch(() => {});
   }, [isOpen, voskStatus, loadModel]);
 
-  // Resetear al abrir
+  // ─── FIX #3: resetear TODO el estado al abrir ───────────────────────────
   useEffect(() => {
     if (isOpen) {
+      // Cancelar callbacks pendientes de la sesión anterior
+      pendingTimeoutsRef.current.forEach(clearTimeout);
+      pendingTimeoutsRef.current = [];
+
       setEstadoTareas(new Map());
       setPaso("inicial");
       setIndiceActual(0);
       setPreguntaAclaracion(null);
       setIndiceNoCompletada(null);
       setTranscriptNoCompletada(null);
+      setErrorValidacion(null); // ← FIX: limpiar error de sesión anterior
+      isProcessingRef.current = false;
+      intentosAclaracionRef.current = 0;
     }
   }, [isOpen]);
 
-  // ==================== TAREAS A REPORTAR ====================
+  // ==================== TAREAS ====================
   const tareasParaReportar = useMemo(() => {
     if (tareasSeleccionadas.size > 0 && actividadesConTareas.length > 0) {
       const tareas: any[] = [];
@@ -193,7 +216,6 @@ export function ReporteActividadesModal({
             });
           }
         });
-
         revision.tareasReportadas?.forEach((tarea: any) => {
           if (tareasSeleccionadas.has(tarea.id)) {
             const reporteExistente = Array.from(
@@ -220,7 +242,6 @@ export function ReporteActividadesModal({
       });
       return tareas;
     }
-
     return actividadesDiarias.flatMap((actividad) =>
       actividad.pendientes
         .filter((p) => p.descripcion && p.descripcion.trim().length > 0)
@@ -253,6 +274,12 @@ export function ReporteActividadesModal({
   const tareaActual = tareasParaReportar[indiceActual];
   const totalTareas = tareasParaReportar.length;
   const progreso = totalTareas > 0 ? (indiceActual / totalTareas) * 100 : 0;
+  const completadas = [...estadoTareas.values()].filter(
+    (e) => e === "completada",
+  ).length;
+  const noCompletadas = [...estadoTareas.values()].filter(
+    (e) => e === "no-completada",
+  ).length;
 
   // ==================== HELPERS ====================
   const actualizarEstadoTarea = useCallback(
@@ -266,9 +293,9 @@ export function ReporteActividadesModal({
     [],
   );
 
-  const avanzarSiguienteTarea = useCallback(async (indice: number) => {
-    const total = tareasRef.current.length;
-    if (indice + 1 < total) {
+  const avanzarSiguienteTarea = useCallback((indice: number) => {
+    intentosAclaracionRef.current = 0; // resetear al avanzar
+    if (indice + 1 < tareasRef.current.length) {
       setIndiceActual(indice + 1);
       setPaso("preguntando-que-hizo");
     } else {
@@ -279,243 +306,231 @@ export function ReporteActividadesModal({
     }
   }, []);
 
-  // ==================== PROCESAR RESPUESTA ====================
-  const procesarRespuesta = async (
-    transcript: string,
-    pasoCapturado: PasoModal,
-  ) => {
-    if (isProcessingRef.current) return;
+  // ─── Refs para funciones mutuas (evitar dependencias circulares) ──────────
+  const procesarRespuestaRef = useRef<
+    (transcript: string, paso: PasoModal) => Promise<void>
+  >(async () => {});
+  const procesarMotivoRef = useRef<(motivoTranscript: string) => Promise<void>>(
+    async () => {},
+  );
 
-    const trimmed = transcript.trim();
+  const procesarRespuesta = useCallback(
+    async (transcript: string, pasoCapturado: PasoModal) => {
+      if (isProcessingRef.current) return;
 
-    if (trimmed.length < 10) {
-      setErrorValidacion("¿Puedes dar más detalles sobre qué hiciste?");
-      setTimeout(() => {
-        setErrorValidacion(null);
-        setPaso("escuchando-que-hizo");
-        setTimeout(() => startRecordingRef.current(), 500);
-      }, 2000);
-      return;
-    }
+      const trimmed = transcript.trim();
 
-    const frasesInvalidas = [
-      "gracias",
-      "ok",
-      "sí",
-      "no",
-      "bien",
-      "listo",
-      "perfecto",
-    ];
-    if (frasesInvalidas.includes(trimmed.toLowerCase())) {
-      setErrorValidacion("¿Puedes dar más detalles sobre qué hiciste?");
-      setTimeout(() => {
-        setErrorValidacion(null);
-        setPaso("escuchando-que-hizo");
-        setTimeout(() => startRecordingRef.current(), 500);
-      }, 2500);
-      return;
-    }
+      // Validación frontend básica
+      if (trimmed.length < 10) {
+        setErrorValidacion("¿Puedes dar más detalles sobre qué hiciste?");
+        safeTimeout(() => {
+          setErrorValidacion(null);
+          setPaso("escuchando-que-hizo");
+          safeTimeout(() => startRecordingRef.current(), 500);
+        }, 2000);
+        return;
+      }
 
-    isProcessingRef.current = true;
-    const indiceCapturado = indiceRef.current;
-    const tareaCapturada = tareasRef.current[indiceCapturado];
-    const esAclaracion = pasoCapturado === "escuchando-aclaracion";
+      const frasesInvalidas = [
+        "gracias",
+        "ok",
+        "sí",
+        "no",
+        "bien",
+        "listo",
+        "perfecto",
+      ];
+      if (frasesInvalidas.includes(trimmed.toLowerCase())) {
+        setErrorValidacion("¿Puedes dar más detalles sobre qué hiciste?");
+        safeTimeout(() => {
+          setErrorValidacion(null);
+          setPaso("escuchando-que-hizo");
+          safeTimeout(() => startRecordingRef.current(), 500);
+        }, 2500);
+        return;
+      }
 
-    try {
-      setPaso(esAclaracion ? "guardando-aclaracion" : "guardando-que-hizo");
+      isProcessingRef.current = true;
+      const indiceCapturado = indiceRef.current;
+      const tareaCapturada = tareasRef.current[indiceCapturado];
+      const esAclaracion = pasoCapturado === "escuchando-aclaracion";
 
-      const data = await guardarReporteTarde({
-        actividadId: tareaCapturada.actividadId,
-        pendienteId: tareaCapturada.pendienteId,
-        queHizo: transcript,
-      });
+      try {
+        setPaso(esAclaracion ? "guardando-aclaracion" : "guardando-que-hizo");
 
-      if (data.success) {
-        if (data.requiereMejora && !esAclaracion) {
+        const data = await guardarReporteTarde({
+          actividadId: tareaCapturada.actividadId,
+          pendienteId: tareaCapturada.pendienteId,
+          queHizo: transcript,
+        });
+
+        if (!data.success) throw new Error(data.error || "Error al guardar");
+
+        // ─── FIX #4: condición original era código muerto (backend retorna
+        // completada:null cuando hay baja confianza, nunca completada:false).
+        // Unificamos la lógica de "requiere aclaración" en un solo bloque. ───
+        const necesitaAclaracion =
+          data.requiereMejora === true || data.completada === null;
+
+        if (necesitaAclaracion) {
+          // ─── FIX #5: limitar intentos de aclaración ───────────────────────
+          intentosAclaracionRef.current += 1;
+
+          if (intentosAclaracionRef.current > MAX_INTENTOS_ACLARACION) {
+            // Demasiados intentos → forzar flujo "no completada" para no bloquear
+            stopVoiceRef.current();
+            setIndiceNoCompletada(indiceCapturado);
+            setTranscriptNoCompletada(transcript);
+            setPaso("preguntando-motivo");
+            const texto =
+              "No pude entender bien tu respuesta. ¿Cuál fue el motivo por el que no completaste la tarea?";
+            speakRef
+              .current(texto)
+              .then(() => {
+                if (pasoActualRef.current === "preguntando-motivo") {
+                  setPaso("escuchando-motivo");
+                  setTimeout(() => startRecordingRef.current(), 400);
+                }
+              })
+              .catch(() => {});
+            return;
+          }
+
           setPreguntaAclaracion(
             data.preguntaAclaracion ||
-              "¿Puedes dar más detalles sobre qué resultado obtuviste?",
+              "No entendí bien tu respuesta. ¿Puedes explicar qué hiciste en esta tarea?",
           );
           setPaso("preguntando-aclaracion");
           return;
         }
 
+        // Respuesta válida: ¿completada o no?
         if (data.completada) {
+          intentosAclaracionRef.current = 0;
           actualizarEstadoTarea(tareaCapturada.pendienteId, "completada");
           speakRef.current("Perfecto, tarea completada.").catch(() => {});
-          setTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
+          safeTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
         } else {
+          // Tarea no completada
           stopVoiceRef.current();
           setIndiceNoCompletada(indiceCapturado);
           setTranscriptNoCompletada(transcript);
 
           if (data.motivoYaCapturado) {
+            // El backend ya extrajo el motivo del texto → no preguntar
             actualizarEstadoTarea(tareaCapturada.pendienteId, "no-completada");
             speakRef
               .current("Entendido, registrado. Pasamos a la siguiente tarea.")
               .catch(() => {});
             setIndiceNoCompletada(null);
             setTranscriptNoCompletada(null);
-            setTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
+            safeTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
             return;
           }
 
           setPaso("preguntando-motivo");
           const texto =
             "¿Cuál fue el motivo por el que no pudiste completar la tarea?";
-          speakRef.current(texto).catch(() => {});
-          setTimeout(
-            () => {
+          speakRef
+            .current(texto)
+            .then(() => {
               if (pasoActualRef.current === "preguntando-motivo") {
                 setPaso("escuchando-motivo");
-                setTimeout(() => startRecordingRef.current(), 500);
+                setTimeout(() => startRecordingRef.current(), 400);
               }
-            },
-            Math.max(3000, texto.length * 55),
-          );
+            })
+            .catch(() => {});
         }
-      } else {
-        throw new Error(data.error || "Error al guardar");
+      } catch (error) {
+        setErrorValidacion("Hubo un problema. Inténtalo de nuevo.");
+        safeTimeout(() => {
+          setErrorValidacion(null);
+          setPaso("preguntando-que-hizo");
+        }, 3000);
+      } finally {
+        isProcessingRef.current = false;
       }
-    } catch (error) {
-      console.error("❌ Error procesando:", error);
-      setErrorValidacion("Hubo un problema. Inténtalo de nuevo.");
-      setTimeout(() => {
-        setErrorValidacion(null);
-        setPaso("preguntando-que-hizo");
-      }, 3000);
-    } finally {
-      isProcessingRef.current = false;
-    }
-  };
+    },
+    [actualizarEstadoTarea, avanzarSiguienteTarea],
+  );
 
-  // ==================== REINTENTAR EXPLICACIÓN ====================
+  const procesarMotivo = useCallback(
+    async (motivoTranscript: string) => {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      const indiceCapturado = indiceNoCompletada ?? indiceRef.current;
+      const tareaCapturada = tareasRef.current[indiceCapturado];
+
+      try {
+        setPaso("guardando-motivo");
+        await guardarReporteTarde({
+          actividadId: tareaCapturada.actividadId,
+          pendienteId: tareaCapturada.pendienteId,
+          queHizo: transcriptNoCompletada || "",
+          motivoNoCompletado: motivoTranscript.trim(),
+          soloGuardarMotivo: true,
+        });
+        actualizarEstadoTarea(tareaCapturada.pendienteId, "no-completada");
+        speakRef
+          .current("Entendido, registrado. Pasamos a la siguiente tarea.")
+          .catch(() => {});
+        setIndiceNoCompletada(null);
+        setTranscriptNoCompletada(null);
+        safeTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
+      } catch {
+        setErrorValidacion("Hubo un problema al guardar. Intenta de nuevo.");
+        safeTimeout(() => {
+          setErrorValidacion(null);
+          setPaso("escuchando-motivo");
+          safeTimeout(() => startRecordingRef.current(), 500);
+        }, 3000);
+      } finally {
+        isProcessingRef.current = false;
+      }
+    },
+    [
+      indiceNoCompletada,
+      transcriptNoCompletada,
+      actualizarEstadoTarea,
+      avanzarSiguienteTarea,
+    ],
+  );
+
+  // Mantener refs actualizados para el callback de Vosk
+  useEffect(() => {
+    procesarRespuestaRef.current = procesarRespuesta;
+  }, [procesarRespuesta]);
+  useEffect(() => {
+    procesarMotivoRef.current = procesarMotivo;
+  }, [procesarMotivo]);
+
   const reintentarExplicacion = () => {
     cancelRecordingRef.current();
     stopVoiceRef.current();
+    intentosAclaracionRef.current = 0; // resetear intentos al reintentar
     setIndiceNoCompletada(null);
     setTranscriptNoCompletada(null);
     setPaso("preguntando-que-hizo");
   };
 
-  // ==================== PROCESAR MOTIVO ====================
-  const procesarMotivo = async (motivoTranscript: string) => {
-    if (isProcessingRef.current) return;
-    isProcessingRef.current = true;
-
-    const indiceCapturado = indiceNoCompletada ?? indiceRef.current;
-    const tareaCapturada = tareasRef.current[indiceCapturado];
-
-    try {
-      setPaso("guardando-motivo");
-
-      await guardarReporteTarde({
-        actividadId: tareaCapturada.actividadId,
-        pendienteId: tareaCapturada.pendienteId,
-        queHizo: transcriptNoCompletada || "",
-        motivoNoCompletado: motivoTranscript.trim(),
-        soloGuardarMotivo: true,
-      });
-
-      actualizarEstadoTarea(tareaCapturada.pendienteId, "no-completada");
-      speakRef
-        .current("Entendido, registrado. Pasamos a la siguiente tarea.")
-        .catch(() => {});
-      setIndiceNoCompletada(null);
-      setTranscriptNoCompletada(null);
-      setTimeout(() => avanzarSiguienteTarea(indiceCapturado), 1500);
-    } catch (error) {
-      console.error("❌ Error guardando motivo:", error);
-      setErrorValidacion("Hubo un problema al guardar. Intenta de nuevo.");
-      setTimeout(() => {
-        setErrorValidacion(null);
-        setPaso("escuchando-motivo");
-        setTimeout(() => startRecordingRef.current(), 500);
-      }, 3000);
-    } finally {
-      isProcessingRef.current = false;
-    }
-  };
-
-  // ==================== INICIAR REPORTE ====================
-  const iniciarReporte = async () => {
-    if (totalTareas === 0) {
-      alert("No hay tareas para reportar");
-      return;
-    }
+  // ─── FIX #6: iniciarReporte también resetea isProcessingRef ──────────────
+  const iniciarReporte = () => {
+    if (totalTareas === 0) return;
+    isProcessingRef.current = false; // ← FIX
+    intentosAclaracionRef.current = 0; // ← FIX
     setIndiceActual(0);
     setEstadoTareas(new Map());
     setPaso("preguntando-que-hizo");
   };
 
-  // ==================== EFECTO: PREGUNTAR QUÉ HIZO ====================
-  useEffect(() => {
-    if (paso !== "preguntando-que-hizo" || !isOpen) return;
+  const handleCancelar = () => {
+    // Cancelar todos los timeouts pendientes para que no muten estado al reabrir
+    pendingTimeoutsRef.current.forEach(clearTimeout);
+    pendingTimeoutsRef.current = [];
 
-    const tarea = tareasRef.current[indiceRef.current];
-    if (!tarea) return;
-
-    const total = tareasRef.current.length;
-    const texto = `Tarea ${indiceRef.current + 1} de ${total}: ${tarea.nombre}. ¿Qué hiciste en esta tarea?`;
-
-    stopVoiceRef.current();
-    speakRef.current(texto).catch(() => {});
-
-    const estimatedSpeechMs = Math.max(3000, texto.length * 55);
-    const timer = setTimeout(() => {
-      if (pasoActualRef.current === "preguntando-que-hizo") {
-        setPaso("escuchando-que-hizo");
-        setTimeout(() => {
-          if (pasoActualRef.current === "escuchando-que-hizo") {
-            startRecordingRef.current();
-          }
-        }, 500);
-      }
-    }, estimatedSpeechMs);
-
-    return () => {
-      clearTimeout(timer);
-      stopVoiceRef.current();
-    };
-  }, [paso, isOpen]);
-
-  // ==================== EFECTO: PREGUNTAR ACLARACIÓN ====================
-  useEffect(() => {
-    if (paso !== "preguntando-aclaracion" || !isOpen) return;
-    if (!preguntaAclaracion) return;
-
-    stopVoiceRef.current();
-    speakRef.current(preguntaAclaracion).catch(() => {});
-
-    const estimatedSpeechMs = Math.max(3000, preguntaAclaracion.length * 55);
-    const timer = setTimeout(() => {
-      if (pasoActualRef.current === "preguntando-aclaracion") {
-        setPaso("escuchando-aclaracion");
-        setTimeout(() => {
-          if (pasoActualRef.current === "escuchando-aclaracion") {
-            startRecordingRef.current();
-          }
-        }, 500);
-      }
-    }, estimatedSpeechMs);
-
-    return () => {
-      clearTimeout(timer);
-      stopVoiceRef.current();
-    };
-  }, [paso, isOpen, preguntaAclaracion]);
-
-  // ==================== LIMPIAR AL CERRAR ====================
-  useEffect(() => {
-    if (!isOpen) {
-      cancelRecordingRef.current();
-      stopVoiceRef.current();
-    }
-  }, [isOpen]);
-
-  // ==================== CANCELAR ====================
-  const handleCancelar = async () => {
+    isProcessingRef.current = false;
+    intentosAclaracionRef.current = 0;
+    stopRealtime();
     cancelRecordingRef.current();
     stopVoiceRef.current();
     onOpenChange(false);
@@ -524,106 +539,214 @@ export function ReporteActividadesModal({
     setPreguntaAclaracion(null);
     setIndiceNoCompletada(null);
     setTranscriptNoCompletada(null);
+    setErrorValidacion(null); // ← FIX: limpiar error para que no persista al reabrir
   };
 
-  // ==================== BADGE DE ESTADO ====================
-  const getEstadoBadge = (estado: EstadoTarea | undefined) => {
-    if (!estado || estado === "pendiente") return null;
-    if (estado === "completada")
-      return (
-        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 dark:text-green-400">
-          <CheckCircle2 className="w-3 h-3" /> Completada
-        </span>
-      );
-    return (
-      <span className="flex items-center gap-1 text-[10px] font-bold text-red-500 dark:text-red-400">
-        <XCircle className="w-3 h-3" /> No completada
-      </span>
-    );
-  };
+  // ==================== EFFECTS DE VOZ ====================
+  useEffect(() => {
+    if (paso !== "preguntando-que-hizo" || !isOpen) return;
+    const tarea = tareasRef.current[indiceRef.current];
+    if (!tarea) return;
+    const total = tareasRef.current.length;
+    const tieneResumen = tarea.resumen?.trim();
+    const texto = tieneResumen
+      ? `Tarea ${indiceRef.current + 1} de ${total}: ${tarea.nombre}. ${tarea.resumen} ¿Quieres agregar algo más o confirmar?`
+      : `Tarea ${indiceRef.current + 1} de ${total}: ${tarea.nombre}. ¿Qué hiciste en esta tarea?`;
 
-  // ==================== PANEL MICRÓFONO (reutilizable) ====================
-  // Muestra micrófono + transcripción parcial en tiempo real + countdown
-  const MicPanel = ({ color = "red" }: { color?: "red" | "yellow" }) => {
-    const p = {
-      red: {
-        ring: "bg-red-500/20 border-red-500/40",
-        glow: "border-red-500",
-        icon: "text-red-500",
-        dot: "bg-red-500",
-        label: "text-red-600 dark:text-red-400",
-        badgeBg: "bg-red-500/10 border-red-500/30",
-        countdown:
-          theme === "dark"
-            ? "bg-red-900/30 border-red-700/60 text-red-300"
-            : "bg-red-50 border-red-300 text-red-700",
-        partial:
-          theme === "dark"
-            ? "bg-[#2a2a2a] border-[#3a3a3a] text-gray-300"
-            : "bg-gray-50 border-gray-200 text-gray-700",
+    let cancelled = false;
+
+    // ─── FIX: esperar a que el TTS termine (Promise) en lugar de un timer ───
+    // Así el micrófono nunca interrumpe al bot aunque la voz sea lenta/rápida.
+    speakRef
+      .current(texto)
+      .then(() => {
+        if (cancelled) return;
+        if (pasoActualRef.current !== "preguntando-que-hizo") return;
+        setPaso("escuchando-que-hizo");
+        setTimeout(() => {
+          if (pasoActualRef.current === "escuchando-que-hizo")
+            startRecordingRef.current();
+        }, 400);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      // ─── FIX: NO llamar stopVoiceRef aquí — el cleanup se dispara en cada
+      // re-render con deps cambiadas (ej. Vosk status) y cortaría el TTS.
+      // El stop explícito solo ocurre en handleCancelar e isOpen=false.
+    };
+  }, [paso, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (paso !== "preguntando-aclaracion" || !isOpen || !preguntaAclaracion)
+      return;
+
+    let cancelled = false;
+
+    speakRef
+      .current(preguntaAclaracion)
+      .then(() => {
+        if (cancelled) return;
+        if (pasoActualRef.current !== "preguntando-aclaracion") return;
+        setPaso("escuchando-aclaracion");
+        setTimeout(() => {
+          if (pasoActualRef.current === "escuchando-aclaracion")
+            startRecordingRef.current();
+        }, 400);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+      // ─── FIX: mismo motivo — NO detener voz en cleanup ───────────────────
+    };
+  }, [paso, isOpen, preguntaAclaracion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) {
+      cancelRecordingRef.current();
+      stopVoiceRef.current();
+    }
+  }, [isOpen]);
+
+  // ==================== MIC PANEL ====================
+  const MicPanel = ({
+    color = "primary",
+  }: {
+    color?: "primary" | "warning" | "danger";
+  }) => {
+    const styles = {
+      primary: {
+        bg: isDark ? "bg-violet-500/10" : "bg-violet-50",
+        border: isDark ? "border-violet-500/30" : "border-violet-200",
+        iconColor: "text-violet-500",
+        ringColor: isDark ? "border-violet-400" : "border-violet-500",
+        dotColor: "bg-violet-500",
+        countdownBg: isDark
+          ? "bg-violet-950/50 border-violet-800/60 text-violet-300"
+          : "bg-violet-50 border-violet-300 text-violet-700",
+        transcriptBg: isDark
+          ? "bg-white/5 border-white/10 text-gray-300"
+          : "bg-white border-gray-200 text-gray-700",
       },
-      yellow: {
-        ring: "bg-yellow-500/20 border-yellow-500/40",
-        glow: "border-yellow-500",
-        icon: "text-yellow-500",
-        dot: "bg-yellow-500",
-        label: "text-yellow-600 dark:text-yellow-400",
-        badgeBg: "bg-yellow-500/10 border-yellow-500/30",
-        countdown:
-          theme === "dark"
-            ? "bg-yellow-900/30 border-yellow-700/60 text-yellow-300"
-            : "bg-yellow-50 border-yellow-300 text-yellow-700",
-        partial:
-          theme === "dark"
-            ? "bg-[#2a2a2a] border-[#3a3a3a] text-gray-300"
-            : "bg-gray-50 border-gray-200 text-gray-700",
+      warning: {
+        bg: isDark ? "bg-amber-500/10" : "bg-amber-50",
+        border: isDark ? "border-amber-500/30" : "border-amber-200",
+        iconColor: "text-amber-500",
+        ringColor: isDark ? "border-amber-400" : "border-amber-500",
+        dotColor: "bg-amber-500",
+        countdownBg: isDark
+          ? "bg-amber-950/50 border-amber-800/60 text-amber-300"
+          : "bg-amber-50 border-amber-300 text-amber-700",
+        transcriptBg: isDark
+          ? "bg-white/5 border-white/10 text-gray-300"
+          : "bg-white border-gray-200 text-gray-700",
+      },
+      danger: {
+        bg: isDark ? "bg-red-500/10" : "bg-red-50",
+        border: isDark ? "border-red-500/30" : "border-red-200",
+        iconColor: "text-red-500",
+        ringColor: isDark ? "border-red-400" : "border-red-500",
+        dotColor: "bg-red-500",
+        countdownBg: isDark
+          ? "bg-red-950/50 border-red-800/60 text-red-300"
+          : "bg-red-50 border-red-300 text-red-700",
+        transcriptBg: isDark
+          ? "bg-white/5 border-white/10 text-gray-300"
+          : "bg-white border-gray-200 text-gray-700",
       },
     }[color];
 
     return (
-      <div className="text-center space-y-3">
-        {/* Ícono de micrófono + onda */}
-        <div className="relative w-16 h-16 mx-auto">
-          <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center animate-pulse border ${p.ring}`}
-          >
-            <Mic className={`w-8 h-8 ${p.icon}`} />
+      <div
+        className={`rounded-2xl border p-5 space-y-4 ${styles.bg} ${styles.border}`}
+      >
+        <div className="flex items-center gap-4">
+          {/* Mic icon with pulse rings */}
+          <div className="relative w-14 h-14 flex-shrink-0">
+            {isRecording && (
+              <>
+                <span
+                  className={`absolute inset-0 rounded-full border-2 ${styles.ringColor} animate-ping opacity-30`}
+                />
+                <span
+                  className={`absolute inset-[-6px] rounded-full border ${styles.ringColor} animate-pulse opacity-20`}
+                />
+              </>
+            )}
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center border-2 ${styles.bg} ${styles.border}`}
+            >
+              {isRecording ? (
+                <Mic className={`w-6 h-6 ${styles.iconColor}`} />
+              ) : (
+                <MicOff
+                  className={`w-6 h-6 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                />
+              )}
+            </div>
           </div>
-          {/* Aro exterior — pulsa cuando está grabando */}
-          <div
-            className={`absolute inset-0 rounded-full border-2 ${p.glow} transition-all duration-300`}
-            style={{
-              transform: isRecording ? "scale(1.2)" : "scale(1)",
-              opacity: isRecording ? 0.55 : 0,
-            }}
-          />
+
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}
+            >
+              {voskStatus === "loading"
+                ? "Cargando modelo..."
+                : isRecording
+                  ? "Escuchando..."
+                  : "Preparando..."}
+            </p>
+            <p
+              className={`text-xs mt-0.5 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+            >
+              {isRecording
+                ? "Silencio de 3s para enviar automáticamente"
+                : "El micrófono se activará en un momento"}
+            </p>
+
+            {/* ─── FIX #8: audio bars sin Math.random() — solo CSS animation ── */}
+            {isRecording && (
+              <div className="flex items-end gap-0.5 mt-2 h-4">
+                {[...Array(12)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-1 rounded-full ${styles.dotColor} opacity-70`}
+                    style={{
+                      height: "100%",
+                      animation: `audioBar ${0.4 + i * 0.07}s ease-in-out infinite alternate`,
+                      animationDelay: `${i * 0.05}s`,
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Estado textual */}
-        <p className="text-xs text-gray-500 font-medium">
-          {voskStatus === "loading"
-            ? "Cargando modelo Vosk..."
-            : isRecording
-              ? "Escuchando... deja de hablar 3 s para enviar"
-              : "Preparando micrófono..."}
-        </p>
-
-        {/* Transcripción parcial en tiempo real */}
+        {/* Live transcript */}
         {voskTranscript && isRecording && (
           <div
-            className={`mx-4 px-3 py-2 rounded-lg text-xs text-left border leading-relaxed ${p.partial}`}
+            className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${styles.transcriptBg}`}
           >
-            <span className="font-semibold opacity-50 mr-1">En vivo:</span>
+            <span
+              className={`text-xs font-bold uppercase tracking-wider mr-2 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+            >
+              En vivo
+            </span>
             <span className="italic">{voskTranscript}</span>
           </div>
         )}
 
-        {/* Countdown de silencio */}
+        {/* Silence countdown */}
         {silenceCountdown !== null && (
           <div
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold ${p.countdown}`}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-full border text-xs font-bold ${styles.countdownBg}`}
           >
-            <div className={`w-1.5 h-1.5 rounded-full ${p.dot} animate-ping`} />
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${styles.dotColor} animate-ping`}
+            />
             Enviando en {silenceCountdown}s...
           </div>
         )}
@@ -631,524 +754,614 @@ export function ReporteActividadesModal({
     );
   };
 
-  // ==================== RENDER ====================
-  return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!open) handleCancelar();
-        else onOpenChange(true);
-      }}
-    >
-      <DialogContent
-        className={`max-w-2xl max-h-[85vh] overflow-hidden flex flex-col rounded-lg border shadow-lg ${
-          theme === "dark"
-            ? "bg-gradient-to-b from-[#1a1a1a] to-[#252527] border-orange-900/50"
-            : "bg-gradient-to-b from-white to-orange-50/30 border-orange-200"
+  // ==================== TASK CARD ====================
+  const TaskCard = () => {
+    if (!tareaActual || paso === "inicial" || paso === "completado")
+      return null;
+    const estadoTarea = estadoTareas.get(tareaActual.pendienteId);
+
+    return (
+      <div
+        className={`rounded-2xl border overflow-hidden ${
+          estadoTarea === "completada"
+            ? isDark
+              ? "bg-emerald-950/30 border-emerald-700/40"
+              : "bg-emerald-50 border-emerald-200"
+            : estadoTarea === "no-completada"
+              ? isDark
+                ? "bg-red-950/30 border-red-700/40"
+                : "bg-red-50 border-red-200"
+              : isDark
+                ? "bg-white/5 border-white/10"
+                : "bg-white border-gray-200"
         }`}
       >
-        <DialogHeader
-          className={`pb-2 border-b bg-gradient-to-r from-orange-500/10 to-amber-500/10 ${
-            theme === "dark" ? "border-orange-900/50" : "border-orange-200"
+        {/* Task number strip */}
+        <div
+          className={`px-4 py-2 flex items-center justify-between text-xs font-bold ${
+            estadoTarea === "completada"
+              ? isDark
+                ? "bg-emerald-900/40 text-emerald-400"
+                : "bg-emerald-100 text-emerald-700"
+              : estadoTarea === "no-completada"
+                ? isDark
+                  ? "bg-red-900/40 text-red-400"
+                  : "bg-red-100 text-red-700"
+                : isDark
+                  ? "bg-white/5 text-gray-400"
+                  : "bg-gray-50 text-gray-500"
           }`}
         >
-          <DialogTitle className="flex items-center justify-between text-base font-bold">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-orange-500" />
-              {turno === "tarde"
-                ? "Explicación de Tareas Completadas"
-                : "Reporte de Actividades del Día"}
-
-              {/* Badge de estado del modelo Vosk */}
-              <span
-                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  voskStatus === "ready"
-                    ? theme === "dark"
-                      ? "bg-violet-500/20 text-violet-300 border-violet-500/40"
-                      : "bg-violet-100 text-violet-700 border-violet-300"
-                    : voskStatus === "loading"
-                      ? theme === "dark"
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                        : "bg-amber-100 text-amber-700 border-amber-300"
-                      : theme === "dark"
-                        ? "bg-gray-700 text-gray-400 border-gray-600"
-                        : "bg-gray-100 text-gray-500 border-gray-300"
-                }`}
-              >
-                {voskStatus === "loading" ? (
-                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                ) : (
-                  <Zap className="w-2.5 h-2.5" />
-                )}
-                Vosk
-                {voskStatus === "loading"
-                  ? "..."
-                  : voskStatus === "ready"
-                    ? " ✓"
-                    : ""}
-              </span>
-            </div>
-
-            {paso !== "inicial" && paso !== "completado" && (
-              <Badge
-                variant="outline"
-                className="text-xs font-bold bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-700 dark:text-orange-300 border-orange-500/50"
-              >
-                Tarea {indiceActual + 1} de {totalTareas}
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {/* ========== INICIAL ========== */}
-          {paso === "inicial" && (
-            <div className="space-y-3">
-              <div
-                className={`p-3 rounded-lg border ${
-                  theme === "dark"
-                    ? "bg-gradient-to-br from-[#2a2a2a] to-[#1f1f1f] border-orange-900/30"
-                    : "bg-gradient-to-br from-white to-orange-50/50 border-orange-200"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-sm">
-                    {turno === "tarde"
-                      ? "Tareas seleccionadas para explicar"
-                      : "Tareas a reportar"}
-                  </span>
-                  <Badge className="text-xs font-bold bg-gradient-to-r from-orange-500 to-amber-500 text-white border-none">
-                    {totalTareas} tareas
-                  </Badge>
-                </div>
-                <p className="text-xs text-gray-500">
-                  El asistente te preguntará qué hiciste en cada tarea. Vosk
-                  procesará tu voz localmente — sin enviar audio a la nube.
-                </p>
-
-                {/* Estado del modelo */}
-                <div
-                  className={`mt-2 flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg ${
-                    voskStatus === "ready"
-                      ? theme === "dark"
-                        ? "bg-green-900/20 text-green-300"
-                        : "bg-green-50 text-green-700"
-                      : voskStatus === "loading"
-                        ? theme === "dark"
-                          ? "bg-violet-900/20 text-violet-300"
-                          : "bg-violet-50 text-violet-700"
-                        : voskStatus === "error"
-                          ? theme === "dark"
-                            ? "bg-red-900/20 text-red-300"
-                            : "bg-red-50 text-red-700"
-                          : theme === "dark"
-                            ? "bg-gray-800 text-gray-400"
-                            : "bg-gray-100 text-gray-500"
-                  }`}
-                >
-                  {voskStatus === "loading" ? (
-                    <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
-                  ) : voskStatus === "ready" ? (
-                    <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                  ) : voskStatus === "error" ? (
-                    <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                  ) : (
-                    <Zap className="w-3 h-3 flex-shrink-0" />
-                  )}
-                  {voskStatus === "loading"
-                    ? "Cargando modelo Vosk (~30 MB)..."
-                    : voskStatus === "ready"
-                      ? "Modelo listo para usar"
-                      : voskStatus === "error"
-                        ? "Error al cargar Vosk"
-                        : "Preparando Vosk..."}
-                </div>
-              </div>
-
-              {totalTareas === 0 ? (
-                <div className="text-center py-6">
-                  <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-2">
-                    <AlertCircle className="w-6 h-6 text-yellow-500" />
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium">
-                    No hay tareas para reportar.
-                  </p>
-                </div>
-              ) : (
-                <Button
-                  onClick={iniciarReporte}
-                  disabled={voskStatus === "loading" || voskStatus === "error"}
-                  className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white h-10 font-bold shadow-md disabled:opacity-50"
-                >
-                  {voskStatus === "loading" ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />{" "}
-                      Cargando Vosk...
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-4 h-4 mr-1.5" />
-                      {turno === "tarde"
-                        ? "Iniciar Explicación por Voz"
-                        : "Iniciar Reporte por Voz"}
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
+          <span>
+            TAREA {indiceActual + 1} DE {totalTareas}
+          </span>
+          {estadoTarea === "completada" && (
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3" /> COMPLETADA
+            </span>
           )}
-
-          {/* ========== BARRA DE PROGRESO ========== */}
-          {paso !== "inicial" && paso !== "completado" && (
-            <div className="w-full h-1.5 bg-gray-200 dark:bg-[#2a2a2a] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500 shadow-sm"
-                style={{ width: `${progreso}%` }}
-              />
-            </div>
-          )}
-
-          {/* ========== HISTORIAL TAREAS ANTERIORES ========== */}
-          {paso !== "inicial" && paso !== "completado" && indiceActual > 0 && (
-            <div
-              className={`rounded-lg border p-2.5 space-y-1.5 ${
-                theme === "dark"
-                  ? "bg-[#1e1e1e] border-orange-900/20"
-                  : "bg-gray-50 border-orange-100"
-              }`}
-            >
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-                Tareas anteriores
-              </p>
-              {tareasParaReportar.slice(0, indiceActual).map((tarea, i) => {
-                const estado = estadoTareas.get(tarea.pendienteId);
-                return (
-                  <div
-                    key={tarea.pendienteId}
-                    className={`flex items-center justify-between px-2 py-1 rounded-md text-xs border ${
-                      estado === "completada"
-                        ? theme === "dark"
-                          ? "bg-green-900/20 border-green-800/40"
-                          : "bg-green-50 border-green-200"
-                        : estado === "no-completada"
-                          ? theme === "dark"
-                            ? "bg-red-900/20 border-red-800/40"
-                            : "bg-red-50 border-red-200"
-                          : "bg-transparent border-transparent"
-                    }`}
-                  >
-                    <span className="text-gray-600 dark:text-gray-400 truncate max-w-[65%]">
-                      <span className="font-bold mr-1">{i + 1}.</span>
-                      {tarea.nombre}
-                    </span>
-                    {getEstadoBadge(estado)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ========== TAREA ACTUAL ========== */}
-          {tareaActual && paso !== "inicial" && paso !== "completado" && (
-            <div
-              className={`p-3 rounded-lg border transition-colors duration-300 ${
-                estadoTareas.get(tareaActual.pendienteId) === "completada"
-                  ? theme === "dark"
-                    ? "bg-gradient-to-br from-green-900/20 to-emerald-900/20 border-green-700/50"
-                    : "bg-gradient-to-br from-green-50 to-emerald-50 border-green-300"
-                  : estadoTareas.get(tareaActual.pendienteId) ===
-                      "no-completada"
-                    ? theme === "dark"
-                      ? "bg-gradient-to-br from-red-900/20 to-red-800/20 border-red-700/50"
-                      : "bg-gradient-to-br from-red-50 to-red-100/50 border-red-200"
-                    : theme === "dark"
-                      ? "bg-gradient-to-br from-[#2a2a2a] to-[#1f1f1f] border-orange-900/30"
-                      : "bg-gradient-to-br from-white to-orange-50/50 border-orange-200"
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-bold shrink-0 border transition-colors duration-300 ${
-                    estadoTareas.get(tareaActual.pendienteId) === "completada"
-                      ? "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/50"
-                      : estadoTareas.get(tareaActual.pendienteId) ===
-                          "no-completada"
-                        ? "bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/50"
-                        : theme === "dark"
-                          ? "bg-orange-500/30 text-orange-300 border-orange-500/50"
-                          : "bg-orange-500/20 text-orange-700 border-orange-500/50"
-                  }`}
-                >
-                  {estadoTareas.get(tareaActual.pendienteId) ===
-                  "completada" ? (
-                    <CheckCircle2 className="w-4 h-4" />
-                  ) : estadoTareas.get(tareaActual.pendienteId) ===
-                    "no-completada" ? (
-                    <XCircle className="w-4 h-4" />
-                  ) : (
-                    indiceActual + 1
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-bold mb-0.5 text-sm">
-                    {tareaActual.nombre}
-                  </h4>
-                  {tareaActual.descripcion &&
-                    tareaActual.descripcion.trim().length > 0 && (
-                      <p className="text-xs text-gray-500 mb-1.5">
-                        {tareaActual.descripcion}
-                      </p>
-                    )}
-                  <div className="flex items-center gap-2 text-[10px] text-gray-500 font-medium">
-                    <span>{tareaActual.actividadTitulo}</span>
-                    <span>•</span>
-                    <span className="flex items-center gap-0.5">
-                      <Clock className="w-2.5 h-2.5 text-orange-500" />
-                      {tareaActual.duracionMin} min
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ========== PREGUNTANDO QUÉ HIZO ========== */}
-          {paso === "preguntando-que-hizo" && (
-            <div className="text-center space-y-3">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20 flex items-center justify-center border border-orange-500/30 mx-auto">
-                <Loader2 className="w-7 h-7 text-orange-500 animate-spin" />
-              </div>
-              <p className="text-xs text-gray-500 font-medium">
-                El asistente está hablando...
-              </p>
-            </div>
-          )}
-
-          {/* ========== ESCUCHANDO QUÉ HIZO ========== */}
-          {paso === "escuchando-que-hizo" && <MicPanel color="red" />}
-
-          {/* ========== GUARDANDO QUÉ HIZO ========== */}
-          {paso === "guardando-que-hizo" && (
-            <div className="text-center space-y-3 py-6">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20 flex items-center justify-center border border-orange-500/30 mx-auto">
-                <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-              </div>
-              <p className="text-xs text-gray-500 font-medium">
-                Analizando tu respuesta con IA...
-              </p>
-            </div>
-          )}
-
-          {/* ========== PREGUNTANDO ACLARACIÓN ========== */}
-          {paso === "preguntando-aclaracion" && (
-            <div className="text-center space-y-3">
-              <div className="w-14 h-14 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 mx-auto">
-                <AlertCircle className="w-7 h-7 text-yellow-500" />
-              </div>
-              <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                Necesitamos un poco más de detalle
-              </p>
-              {preguntaAclaracion && (
-                <p className="text-xs text-gray-500 italic px-4">
-                  "{preguntaAclaracion}"
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* ========== ESCUCHANDO ACLARACIÓN ========== */}
-          {paso === "escuchando-aclaracion" && <MicPanel color="yellow" />}
-
-          {/* ========== GUARDANDO ACLARACIÓN ========== */}
-          {paso === "guardando-aclaracion" && (
-            <div className="text-center space-y-3 py-6">
-              <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/30 mx-auto">
-                <Loader2 className="w-6 h-6 text-yellow-500 animate-spin" />
-              </div>
-              <p className="text-xs text-gray-500 font-medium">
-                Analizando tu aclaración...
-              </p>
-            </div>
-          )}
-
-          {/* ========== PREGUNTANDO MOTIVO ========== */}
-          {paso === "preguntando-motivo" && (
-            <div className="text-center space-y-3">
-              <div
-                className={`p-3 rounded-lg border ${
-                  theme === "dark"
-                    ? "bg-red-900/20 border-red-700/50"
-                    : "bg-red-50 border-red-200"
-                }`}
-              >
-                <XCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <p className="text-xs font-bold text-red-600 dark:text-red-400">
-                  Tarea no completada
-                </p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30 mx-auto">
-                <Loader2 className="w-7 h-7 text-red-500 animate-spin" />
-              </div>
-              <p className="text-xs text-gray-500 font-medium">
-                El asistente está preguntando el motivo...
-              </p>
-            </div>
-          )}
-
-          {/* ========== ESCUCHANDO MOTIVO ========== */}
-          {paso === "escuchando-motivo" && (
-            <div className="space-y-3">
-              <div
-                className={`p-3 rounded-lg border ${
-                  theme === "dark"
-                    ? "bg-red-900/20 border-red-700/50"
-                    : "bg-red-50 border-red-200"
-                }`}
-              >
-                <XCircle className="w-5 h-5 text-red-500 mx-auto mb-1" />
-                <p className="text-xs font-bold text-red-600 dark:text-red-400 text-center">
-                  Tarea no completada — explica el motivo
-                </p>
-              </div>
-              <MicPanel color="red" />
-              <button
-                onClick={reintentarExplicacion}
-                className="w-full text-[10px] text-orange-500 hover:underline font-medium"
-              >
-                ¿Sí la completaste? Volver a explicar
-              </button>
-            </div>
-          )}
-
-          {/* ========== GUARDANDO MOTIVO ========== */}
-          {paso === "guardando-motivo" && (
-            <div className="text-center space-y-3 py-6">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30 mx-auto">
-                <Loader2 className="w-6 h-6 text-red-500 animate-spin" />
-              </div>
-              <p className="text-xs text-gray-500 font-medium">
-                Guardando motivo...
-              </p>
-            </div>
-          )}
-
-          {/* ========== COMPLETADO ========== */}
-          {paso === "completado" && (
-            <div className="text-center space-y-3 py-4">
-              <div
-                className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center border-2 ${
-                  theme === "dark"
-                    ? "bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-500/50"
-                    : "bg-gradient-to-br from-green-100 to-emerald-100 border-green-400"
-                }`}
-              >
-                <CheckCircle2 className="w-8 h-8 text-green-500" />
-              </div>
-              <h3 className="text-lg font-bold">¡Reporte Completado!</h3>
-
-              <div
-                className={`rounded-lg border p-3 text-left space-y-1.5 ${
-                  theme === "dark"
-                    ? "bg-[#1e1e1e] border-orange-900/20"
-                    : "bg-gray-50 border-orange-100"
-                }`}
-              >
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">
-                  Resumen de tareas
-                </p>
-                {tareasParaReportar.map((tarea, i) => {
-                  const estado = estadoTareas.get(tarea.pendienteId);
-                  return (
-                    <div
-                      key={tarea.pendienteId}
-                      className={`flex items-center justify-between px-2 py-1 rounded-md text-xs border ${
-                        estado === "completada"
-                          ? theme === "dark"
-                            ? "bg-green-900/20 border-green-800/40"
-                            : "bg-green-50 border-green-200"
-                          : theme === "dark"
-                            ? "bg-red-900/20 border-red-800/40"
-                            : "bg-red-50 border-red-200"
-                      }`}
-                    >
-                      <span className="text-gray-600 dark:text-gray-400 truncate max-w-[65%]">
-                        <span className="font-bold mr-1">{i + 1}.</span>
-                        {tarea.nombre}
-                      </span>
-                      {getEstadoBadge(estado)}
-                    </div>
-                  );
-                })}
-                <div className="flex justify-center gap-4 pt-2 border-t border-gray-200 dark:border-gray-700 mt-1">
-                  <span className="text-[10px] font-bold text-green-600 dark:text-green-400">
-                    ✅{" "}
-                    {
-                      [...estadoTareas.values()].filter(
-                        (e) => e === "completada",
-                      ).length
-                    }{" "}
-                    completadas
-                  </span>
-                  <span className="text-[10px] font-bold text-red-500 dark:text-red-400">
-                    ❌{" "}
-                    {
-                      [...estadoTareas.values()].filter(
-                        (e) => e === "no-completada",
-                      ).length
-                    }{" "}
-                    no completadas
-                  </span>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="h-9 font-bold border-green-500/50 hover:bg-green-500/10 hover:text-green-700 dark:hover:text-green-300"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                Cerrar
-              </Button>
-            </div>
-          )}
-
-          {/* ========== ERROR ========== */}
-          {errorValidacion && (
-            <div
-              className={`p-2.5 rounded-lg border animate-in slide-in-from-top duration-300 ${
-                theme === "dark"
-                  ? "bg-gradient-to-br from-red-900/30 to-red-800/30 border-red-500/50"
-                  : "bg-gradient-to-br from-red-50 to-red-100 border-red-300"
-              }`}
-            >
-              <div className="flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                  {errorValidacion}
-                </p>
-              </div>
-            </div>
+          {estadoTarea === "no-completada" && (
+            <span className="flex items-center gap-1">
+              <XCircle className="w-3 h-3" /> NO COMPLETADA
+            </span>
           )}
         </div>
 
-        {/* ========== BOTÓN CANCELAR ========== */}
-        {paso !== "inicial" && paso !== "completado" && (
-          <div
-            className={`flex justify-center p-3 border-t bg-gradient-to-r from-gray-50/50 to-orange-50/30 dark:from-[#1f1f1f] dark:to-[#2a2a2a] ${
-              theme === "dark" ? "border-orange-900/50" : "border-orange-200"
-            }`}
+        {/* Task content */}
+        <div className="px-4 py-3">
+          <h4
+            className={`font-bold text-sm leading-snug ${isDark ? "text-white" : "text-gray-900"}`}
           >
-            <Button
-              variant="outline"
-              onClick={handleCancelar}
-              className="hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 hover:text-white hover:border-red-500 transition-all h-9 text-sm font-bold"
+            {tareaActual.nombre}
+          </h4>
+          {tareaActual.descripcion?.trim() && (
+            <p
+              className={`text-xs mt-1 leading-relaxed line-clamp-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}
             >
-              <X className="w-3.5 h-3.5 mr-1.5" />
-              Cancelar Reporte
-            </Button>
+              {tareaActual.descripcion}
+            </p>
+          )}
+          <div
+            className={`flex items-center gap-3 mt-2 text-[10px] font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}
+          >
+            <span className="truncate max-w-[160px]">
+              {tareaActual.actividadTitulo}
+            </span>
+            <span>·</span>
+            <span className="flex items-center gap-1 flex-shrink-0">
+              <Clock className="w-2.5 h-2.5" />
+              {tareaActual.duracionMin} min
+            </span>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    );
+  };
+
+  // ==================== RENDER ====================
+  return (
+    <>
+      <style>{`
+        @keyframes audioBar {
+          from { transform: scaleY(0.15); }
+          to   { transform: scaleY(1); }
+        }
+        @keyframes fadeSlideUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .fade-slide-up { animation: fadeSlideUp 0.25s ease forwards; }
+      `}</style>
+
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCancelar();
+          else onOpenChange(true);
+        }}
+      >
+        <DialogContent
+          className={`max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col rounded-2xl border shadow-2xl p-0 gap-0 ${
+            isDark ? "bg-[#111113] border-white/10" : "bg-white border-gray-200"
+          }`}
+        >
+          {/* ── HEADER ── */}
+          <DialogHeader
+            className={`px-5 pt-5 pb-4 border-b flex-shrink-0 ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                    isDark
+                      ? "bg-orange-500/15 border border-orange-500/20"
+                      : "bg-orange-50 border border-orange-200"
+                  }`}
+                >
+                  <Mic className="w-4 h-4 text-orange-500" />
+                </div>
+                <div>
+                  <DialogTitle
+                    className={`text-sm font-bold leading-tight ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    {turno === "tarde"
+                      ? "Explicación de Tareas"
+                      : "Reporte de Actividades"}
+                  </DialogTitle>
+                  <p
+                    className={`text-[11px] mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    {turno === "tarde"
+                      ? "Explica lo que hiciste en cada tarea"
+                      : "Reporta tu progreso del día"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Vosk status pill */}
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                    voskStatus === "ready"
+                      ? isDark
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : voskStatus === "loading"
+                        ? isDark
+                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                        : isDark
+                          ? "bg-white/5 text-gray-500 border-white/10"
+                          : "bg-gray-50 text-gray-500 border-gray-200"
+                  }`}
+                >
+                  {voskStatus === "loading" ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : (
+                    <Zap className="w-2.5 h-2.5" />
+                  )}
+                  {voskStatus === "ready"
+                    ? "Vosk listo"
+                    : voskStatus === "loading"
+                      ? "Cargando..."
+                      : "Vosk"}
+                </span>
+
+                {paso !== "inicial" && paso !== "completado" && (
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${isDark ? "bg-white/5 text-gray-400" : "bg-gray-100 text-gray-600"}`}
+                  >
+                    {indiceActual + 1} / {totalTareas}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            {paso !== "inicial" && paso !== "completado" && (
+              <div
+                className={`mt-3 h-1 rounded-full overflow-hidden ${isDark ? "bg-white/10" : "bg-gray-100"}`}
+              >
+                <div
+                  className="h-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-700 ease-out rounded-full"
+                  style={{ width: `${progreso}%` }}
+                />
+              </div>
+            )}
+          </DialogHeader>
+
+          {/* ── BODY ── */}
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {/* ══ INICIAL ══ */}
+            {paso === "inicial" && (
+              <div className="fade-slide-up space-y-4">
+                <div
+                  className={`rounded-2xl border p-4 ${isDark ? "bg-white/[0.03] border-white/10" : "bg-gray-50 border-gray-200"}`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                    >
+                      {turno === "tarde"
+                        ? "Tareas a explicar"
+                        : "Tareas a reportar"}
+                    </span>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                      {totalTareas} tareas
+                    </span>
+                  </div>
+
+                  {totalTareas > 0 ? (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto [scrollbar-width:none]">
+                      {tareasParaReportar.map((tarea, i) => (
+                        <div
+                          key={tarea.pendienteId}
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs ${isDark ? "bg-white/5" : "bg-white border border-gray-100"}`}
+                        >
+                          <span
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${isDark ? "bg-orange-500/20 text-orange-400" : "bg-orange-100 text-orange-600"}`}
+                          >
+                            {i + 1}
+                          </span>
+                          <span
+                            className={`font-medium truncate ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                          >
+                            {tarea.nombre}
+                          </span>
+                          <span
+                            className={`ml-auto flex-shrink-0 flex items-center gap-1 ${isDark ? "text-gray-600" : "text-gray-400"}`}
+                          >
+                            <Clock className="w-2.5 h-2.5" />
+                            {tarea.duracionMin}m
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <AlertCircle
+                        className={`w-8 h-8 mx-auto mb-2 ${isDark ? "text-gray-600" : "text-gray-400"}`}
+                      />
+                      <p
+                        className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                      >
+                        No hay tareas para reportar
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Vosk status */}
+                <div
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-xs ${
+                    voskStatus === "ready"
+                      ? isDark
+                        ? "bg-emerald-950/30 border-emerald-800/40 text-emerald-400"
+                        : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      : voskStatus === "loading"
+                        ? isDark
+                          ? "bg-amber-950/30 border-amber-800/40 text-amber-400"
+                          : "bg-amber-50 border-amber-200 text-amber-700"
+                        : voskStatus === "error"
+                          ? isDark
+                            ? "bg-red-950/30 border-red-800/40 text-red-400"
+                            : "bg-red-50 border-red-200 text-red-600"
+                          : isDark
+                            ? "bg-white/5 border-white/10 text-gray-500"
+                            : "bg-gray-50 border-gray-200 text-gray-500"
+                  }`}
+                >
+                  {voskStatus === "loading" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                  ) : voskStatus === "ready" ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                  ) : voskStatus === "error" ? (
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+                  )}
+                  <span className="font-medium">
+                    {voskStatus === "loading"
+                      ? "Cargando modelo Vosk (~30 MB)..."
+                      : voskStatus === "ready"
+                        ? "Modelo listo · Procesamiento 100% local"
+                        : voskStatus === "error"
+                          ? "Error al cargar Vosk"
+                          : "Preparando Vosk..."}
+                  </span>
+                </div>
+
+                {totalTareas > 0 && (
+                  <Button
+                    onClick={iniciarReporte}
+                    disabled={
+                      voskStatus === "loading" || voskStatus === "error"
+                    }
+                    className="w-full h-11 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:shadow-none transition-all"
+                  >
+                    {voskStatus === "loading" ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
+                        Cargando Vosk...
+                      </>
+                    ) : (
+                      <>
+                        <Mic className="w-4 h-4 mr-2" />{" "}
+                        {turno === "tarde"
+                          ? "Iniciar explicación"
+                          : "Iniciar reporte"}
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* ══ HISTORIAL ══ */}
+            {paso !== "inicial" &&
+              paso !== "completado" &&
+              indiceActual > 0 && (
+                <div
+                  className={`rounded-xl border overflow-hidden ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}
+                >
+                  <div
+                    className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider ${isDark ? "bg-white/5 text-gray-500" : "bg-gray-50 text-gray-400"}`}
+                  >
+                    Anteriores
+                  </div>
+                  {tareasParaReportar.slice(0, indiceActual).map((tarea, i) => {
+                    const estado = estadoTareas.get(tarea.pendienteId);
+                    return (
+                      <div
+                        key={tarea.pendienteId}
+                        className={`flex items-center justify-between px-3 py-2 border-t text-xs ${isDark ? "border-white/[0.04]" : "border-gray-50"}`}
+                      >
+                        <span
+                          className={`truncate max-w-[70%] ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          <span className="font-bold mr-1.5">{i + 1}.</span>
+                          {tarea.nombre}
+                        </span>
+                        {estado === "completada" && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
+                            <CheckCircle2 className="w-3 h-3" /> OK
+                          </span>
+                        )}
+                        {estado === "no-completada" && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
+                            <XCircle className="w-3 h-3" /> Sin completar
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+            {/* ══ TAREA ACTUAL ══ */}
+            <TaskCard />
+
+            {/* ══ ESTADOS DE VOZ ══ */}
+            {paso === "preguntando-que-hizo" && (
+              <div
+                className={`fade-slide-up flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
+              >
+                <Loader2 className="w-4 h-4 text-orange-500 animate-spin flex-shrink-0" />
+                <p
+                  className={`text-xs font-medium ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  El asistente está hablando...
+                </p>
+              </div>
+            )}
+
+            {paso === "escuchando-que-hizo" && (
+              <div className="fade-slide-up">
+                <MicPanel color="primary" />
+              </div>
+            )}
+
+            {(paso === "guardando-que-hizo" ||
+              paso === "guardando-aclaracion") && (
+              <div
+                className={`fade-slide-up flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? "bg-violet-950/30 border-violet-800/40" : "bg-violet-50 border-violet-200"}`}
+              >
+                <Loader2 className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
+                <p
+                  className={`text-xs font-medium ${isDark ? "text-violet-400" : "text-violet-700"}`}
+                >
+                  Analizando respuesta con IA...
+                </p>
+              </div>
+            )}
+
+            {paso === "preguntando-aclaracion" && (
+              <div
+                className={`fade-slide-up rounded-xl border p-4 space-y-2 ${isDark ? "bg-amber-950/30 border-amber-800/40" : "bg-amber-50 border-amber-200"}`}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <p
+                    className={`text-xs font-bold ${isDark ? "text-amber-400" : "text-amber-700"}`}
+                  >
+                    Necesitamos más detalle
+                    {intentosAclaracionRef.current > 0 && (
+                      <span
+                        className={`ml-2 font-normal ${isDark ? "text-amber-600" : "text-amber-500"}`}
+                      >
+                        (intento {intentosAclaracionRef.current}/
+                        {MAX_INTENTOS_ACLARACION})
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {preguntaAclaracion && (
+                  <p
+                    className={`text-xs italic pl-6 ${isDark ? "text-amber-300/70" : "text-amber-600"}`}
+                  >
+                    "{preguntaAclaracion}"
+                  </p>
+                )}
+              </div>
+            )}
+
+            {paso === "escuchando-aclaracion" && (
+              <div className="fade-slide-up">
+                <MicPanel color="warning" />
+              </div>
+            )}
+
+            {paso === "preguntando-motivo" && (
+              <div
+                className={`fade-slide-up flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? "bg-red-950/30 border-red-800/40" : "bg-red-50 border-red-200"}`}
+              >
+                <Loader2 className="w-4 h-4 text-red-500 animate-spin flex-shrink-0" />
+                <p
+                  className={`text-xs font-medium ${isDark ? "text-red-400" : "text-red-600"}`}
+                >
+                  Preguntando el motivo...
+                </p>
+              </div>
+            )}
+
+            {(paso === "escuchando-motivo" || paso === "guardando-motivo") && (
+              <div className="fade-slide-up space-y-3">
+                {paso === "escuchando-motivo" && <MicPanel color="danger" />}
+                {paso === "guardando-motivo" && (
+                  <div
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${isDark ? "bg-red-950/30 border-red-800/40" : "bg-red-50 border-red-200"}`}
+                  >
+                    <Loader2 className="w-4 h-4 text-red-500 animate-spin flex-shrink-0" />
+                    <p
+                      className={`text-xs font-medium ${isDark ? "text-red-400" : "text-red-600"}`}
+                    >
+                      Guardando motivo...
+                    </p>
+                  </div>
+                )}
+                {paso === "escuchando-motivo" && (
+                  <button
+                    onClick={reintentarExplicacion}
+                    className="w-full text-[11px] text-orange-500 hover:text-orange-400 font-medium transition-colors"
+                  >
+                    ¿Sí la completaste? → Volver a explicar
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* ══ COMPLETADO ══ */}
+            {paso === "completado" && (
+              <div className="fade-slide-up space-y-4">
+                <div className="text-center py-4">
+                  <div
+                    className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-3 ${isDark ? "bg-emerald-950/50 border-2 border-emerald-700/50" : "bg-emerald-50 border-2 border-emerald-200"}`}
+                  >
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  </div>
+                  <h3
+                    className={`text-base font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
+                    ¡Reporte completado!
+                  </h3>
+                  <p
+                    className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    Todas las tareas han sido procesadas
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className={`rounded-xl border p-3 text-center ${isDark ? "bg-emerald-950/30 border-emerald-800/40" : "bg-emerald-50 border-emerald-200"}`}
+                  >
+                    <p
+                      className={`text-2xl font-bold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
+                    >
+                      {completadas}
+                    </p>
+                    <p
+                      className={`text-[10px] font-medium mt-0.5 ${isDark ? "text-emerald-600" : "text-emerald-500"}`}
+                    >
+                      Completadas
+                    </p>
+                  </div>
+                  <div
+                    className={`rounded-xl border p-3 text-center ${isDark ? "bg-red-950/30 border-red-800/40" : "bg-red-50 border-red-200"}`}
+                  >
+                    <p
+                      className={`text-2xl font-bold ${isDark ? "text-red-400" : "text-red-600"}`}
+                    >
+                      {noCompletadas}
+                    </p>
+                    <p
+                      className={`text-[10px] font-medium mt-0.5 ${isDark ? "text-red-600" : "text-red-500"}`}
+                    >
+                      No completadas
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className={`rounded-xl border overflow-hidden ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}
+                >
+                  <div
+                    className={`px-3 py-2 text-[10px] font-bold uppercase tracking-wider ${isDark ? "bg-white/5 text-gray-500" : "bg-gray-50 text-gray-400"}`}
+                  >
+                    Resumen
+                  </div>
+                  {tareasParaReportar.map((tarea, i) => {
+                    const estado = estadoTareas.get(tarea.pendienteId);
+                    return (
+                      <div
+                        key={tarea.pendienteId}
+                        className={`flex items-center justify-between px-3 py-2.5 border-t text-xs ${isDark ? "border-white/[0.04]" : "border-gray-50"}`}
+                      >
+                        <span
+                          className={`truncate max-w-[70%] ${isDark ? "text-gray-300" : "text-gray-700"}`}
+                        >
+                          <span
+                            className={`font-bold mr-1.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                          >
+                            {i + 1}.
+                          </span>
+                          {tarea.nombre}
+                        </span>
+                        {estado === "completada" && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-500">
+                            <CheckCircle2 className="w-3 h-3" /> OK
+                          </span>
+                        )}
+                        {estado === "no-completada" && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-red-500">
+                            <XCircle className="w-3 h-3" /> Pendiente
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  onClick={() => onOpenChange(false)}
+                  className="w-full h-10 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 text-white"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Cerrar
+                </Button>
+              </div>
+            )}
+
+            {/* ══ ERROR ══ */}
+            {errorValidacion && (
+              <div
+                className={`fade-slide-up flex items-center gap-2.5 px-4 py-3 rounded-xl border text-xs font-medium ${
+                  isDark
+                    ? "bg-red-950/40 border-red-800/50 text-red-400"
+                    : "bg-red-50 border-red-200 text-red-600"
+                }`}
+              >
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                {errorValidacion}
+              </div>
+            )}
+          </div>
+
+          {/* ── FOOTER ── */}
+          {paso !== "inicial" && paso !== "completado" && (
+            <div
+              className={`px-5 py-3 border-t flex-shrink-0 ${isDark ? "border-white/[0.06]" : "border-gray-100"}`}
+            >
+              <Button
+                variant="ghost"
+                onClick={handleCancelar}
+                className={`w-full h-9 rounded-xl text-xs font-semibold ${isDark ? "text-gray-500 hover:text-red-400 hover:bg-red-500/10" : "text-gray-400 hover:text-red-600 hover:bg-red-50"}`}
+              >
+                <X className="w-3.5 h-3.5 mr-1.5" /> Cancelar reporte
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

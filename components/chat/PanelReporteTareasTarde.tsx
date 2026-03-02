@@ -1348,7 +1348,6 @@ function PiePanelReporte({
   const todasSeleccionadas =
     countSeleccionadas === totalTareasPendientes && totalTareasPendientes > 0;
   const esTrabajoEnEquipo = todosColaboradores.length > 1;
-  const esTurnoTarde = turno === "tarde";
   const nombreUsuario = currentUserEmail.includes("@")
     ? currentUserEmail.split("@")[0]
     : currentUserEmail;
@@ -1359,11 +1358,7 @@ function PiePanelReporte({
       return;
     }
     if (countSeleccionadas === 0) return;
-    if (esTurnoTarde) {
-      onOpenReporteModal?.();
-      return;
-    }
-    onExplicarTareasSeleccionadas();
+    onOpenReporteModal?.();
   };
 
   const hayTareasPendientes = totalTareasPendientes > 0;

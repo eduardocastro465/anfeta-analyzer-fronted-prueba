@@ -1,7 +1,7 @@
 // hooks/useVoiceRecognition.ts
 import { useRef, useState } from "react";
 
-export function useVoiceRecognition() {
+export function useVoiceRecognition(lang: string = "es-MX") {
   const [isRecording, setIsRecording] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
@@ -44,7 +44,7 @@ export function useVoiceRecognition() {
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.lang = "es-MX";
+    recognition.lang = lang;
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;

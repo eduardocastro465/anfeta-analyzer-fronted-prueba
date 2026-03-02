@@ -24,9 +24,22 @@ export const useVoiceSynthesis = (initialRate = 1.2, initialLang = "es-MX") => {
 
         // Selección de voz
         const voices = window.speechSynthesis.getVoices();
-        const selectedVoice =
-          voices.find((v) => v.name.includes("Microsoft Sabina")) ||
-          voices.find((v) => v.lang.startsWith("es"));
+        let selectedVoice = null;
+
+        if (langRef.current === "es-MX") {
+          selectedVoice = voices.find((v) =>
+            v.name.includes("Microsoft Sabina"),
+          );
+        }
+
+        if (!selectedVoice) {
+          selectedVoice = voices.find((v) => v.lang === langRef.current);
+        }
+
+        if (!selectedVoice) {
+          const baseLang = langRef.current.split("-")[0];
+          selectedVoice = voices.find((v) => v.lang.startsWith(baseLang));
+        }
 
         if (selectedVoice) utterance.voice = selectedVoice;
 

@@ -32,8 +32,8 @@ export function TurnoPanel({
   const theme = useTheme();
 
   // TODO: CAMBIAR AQUI PARA CAMBIAR ENTRE LOS FORMULARIOS
-  const esMañana = turno === "mañana";
-  // const esMañana = turno === "tarde";
+  // const esMañana = turno === "mañana";
+  const esMañana = turno === "tarde";
 
   const color = esMañana ? "blue" : "purple";
   const bannerClasses = esMañana

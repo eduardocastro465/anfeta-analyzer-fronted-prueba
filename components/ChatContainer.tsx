@@ -825,12 +825,14 @@ export function ChatContainer({
       {/* Botón toggle desktop */}
       {!isMobile && (
         <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`
-            fixed z-40 top-1/2 -translate-y-1/2
-            transition-all duration-300 p-1.5 rounded-r-lg
-            hidden md:flex items-center justify-center
-            ${sidebarOpen ? "left-64 sm:left-72 md:left-80" : "left-0"}
+           onClick={() => setSidebarOpen(!sidebarOpen)}
+    tabIndex={showSettings ? -1 : 0}
+    className={`
+      fixed z-40 top-1/2 -translate-y-1/2
+      transition-[left] duration-300 p-1.5 rounded-r-lg
+      hidden md:flex items-center justify-center
+      ${showSettings ? "opacity-0 pointer-events-none" : "opacity-100"}
+      ${sidebarOpen ? "left-64 sm:left-72 md:left-80" : "left-0"}
             ${
               theme === "dark"
                 ? "bg-[#1a1a1a] hover:bg-[#252525] text-gray-400 hover:text-white border-y border-r border-[#2a2a2a]"

@@ -46,7 +46,6 @@ export interface HeaderProps {
   onOpenSidebar?: () => void;
   isMobile?: boolean;
   isSidebarOpen?: boolean;
-  
 }
 
 export interface Actividad {
@@ -199,6 +198,7 @@ export interface TareaConTiempo {
   terminada: boolean;
   confirmada: boolean;
   descripcion?: string;
+  resumen?: string | null;
   duracionMin: number;
   fechaCreacion: string;
   fechaFinTerminada: string | null;
@@ -211,6 +211,7 @@ export interface TareaConTiempo {
     emailUsuario: string;
     fechaRegistro: string;
     validadaPorIA: boolean;
+    resumen?: string | null;
     razonIA: string;
   } | null;
 }
@@ -277,6 +278,7 @@ export interface AssistantAnalysis {
         terminada: boolean;
         confirmada: boolean;
         descripcion?: string;
+        resumen?: string | null;
         duracionMin: number;
         queHizo: string;
         fechaCreacion: string;
@@ -290,6 +292,7 @@ export interface AssistantAnalysis {
           fechaRegistro: string;
           validadaPorIA: boolean;
           razonIA: string;
+          resumen?: string | null;
         } | null;
       }>;
       totalTareasConTiempo: number;
@@ -469,6 +472,7 @@ export interface TasksPanelProps {
       fechaFinTerminada: string | null;
       diasPendiente: number;
       prioridad: string;
+      resumen?: string | null;
       colaboradores?: string[];
     }>;
     totalTareasConTiempo: number;

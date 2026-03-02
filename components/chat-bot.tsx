@@ -119,7 +119,9 @@ export function ChatBot({
 
   const isManuallyCancellingRef = useRef(false);
   const voskGuidedModeRef = useRef(false);
-  const voiceRecognition = useVoiceRecognition();
+  const voiceRecognition = useVoiceRecognition(
+    preferencias?.idiomaVoz ?? "es-MX",
+  );
   const voiceMode = useVoiceMode();
   const conversationHistory = useConversationHistory();
 
@@ -372,6 +374,7 @@ export function ChatBot({
             reportada: t.reportada || false,
             duracionMin: t.duracionMin || 0,
             descripcion: t.descripcion || "",
+            resumen: t.resumen ?? t.explicacionVoz?.resumen ?? null,
             fechaCreacion: t.fechaCreacion,
             fechaFinTerminada: t.fechaFinTerminada || null,
             diasPendiente: t.diasPendiente || 0,
@@ -495,13 +498,13 @@ export function ChatBot({
         duration: 2000,
       });
     } catch (error) {
-      console.error("❌ Error al actualizar datos:", error);
+      console.error("Error al actualizar datos:", error);
     }
   };
 
   actualizarDatosRef.current = actualizarDatosPorWebSocket;
 
-  // ✅ DESPUÉS
+  // DESPUÉS
   useEffect(() => {
     if (!colaborador?.email) return;
     wsService.conectar(colaborador.email);
@@ -522,8 +525,8 @@ export function ChatBot({
     wsService.on("explicacion_guardada", onExplicacionGuardada);
 
     return () => {
-      wsService.off("cambios-tareas", onCambiosTareas); // ✅ solo el suyo
-      wsService.off("explicacion_guardada", onExplicacionGuardada); // ✅ solo el suyo
+      wsService.off("cambios-tareas", onCambiosTareas); // solo el suyo
+      wsService.off("explicacion_guardada", onExplicacionGuardada); // solo el suyo
     };
   }, [colaborador?.email]);
   // ==================== MODO VOZ - NAVEGACIÓN ====================
@@ -789,19 +792,19 @@ export function ChatBot({
     },
   });
 
-const handleStartRecording = async () => {
-  if (engine === "vosk") {
-    // Asegurarse que el socket esté conectado antes de iniciar
-    if (!wsService.estaConectado()) {
-      wsService.conectar(colaborador.email);
-      // Esperar un momento para que conecte
-      await new Promise(resolve => setTimeout(resolve, 500));
+  const handleStartRecording = async () => {
+    if (engine === "vosk") {
+      // Asegurarse que el socket esté conectado antes de iniciar
+      if (!wsService.estaConectado()) {
+        wsService.conectar(colaborador.email);
+        // Esperar un momento para que conecte
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      await voskRealtime.startRealtime();
+    } else {
+      await autoSendVoiceChat.startVoiceRecording();
     }
-    await voskRealtime.startRealtime();
-  } else {
-    await autoSendVoiceChat.startVoiceRecording();
-  }
-};
+  };
 
   const handleStopRecording = async () => {
     if (engine === "vosk") {
@@ -1538,7 +1541,9 @@ const handleStartRecording = async () => {
       const colabs = extraerColaboradores(data);
       setColaboradoresUnicos(colabs);
       colaboradoresUnicosRef.current = colabs;
+      console.log("data", data);
       const adaptedData = adaptarDatosAnalisis(data);
+      console.log("adaptedData", adaptedData);
       assistantAnalysisRef.current = adaptedData;
       setAssistantAnalysis(adaptedData);
       setStep("ready");
