@@ -1354,16 +1354,9 @@ function PiePanelReporte({
     : currentUserEmail;
 
   const handleMainAction = () => {
-    if (esHoraReporte) {
-      onOpenReport?.();
-      return;
-    }
+    if (esHoraReporte) { onOpenReport?.(); return; }
     if (countSeleccionadas === 0) return;
-    if (esTurnoTarde) {
-      onOpenReporteModal?.();
-      return;
-    }
-    onExplicarTareasSeleccionadas();
+    onOpenReporteModal?.();
   };
 
   const hayTareasPendientes = totalTareasPendientes > 0;

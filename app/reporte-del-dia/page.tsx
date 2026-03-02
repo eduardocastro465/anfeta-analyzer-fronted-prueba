@@ -28,7 +28,7 @@ import {
 import {
   useActividadesData,
   obtenerFechaPorDias,
-} from "../reporte-del-dia/hooks/useReporteData";
+} from "./hooks/useReporteData";
 import { Actividad, Tarea } from "./components/types";
 
 export default function PanelAdminActividades() {

@@ -191,8 +191,8 @@ export function ChatBot({
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [horaInicioReporteMañana] = useState("2:00 AM");
-  const [horaFinReporteMañana] = useState("1:32 PM");
-  const [horaInicioReporte] = useState("1:33 PM");
+  const [horaFinReporteMañana] = useState("2:30 AM");
+  const [horaInicioReporte] = useState("2:31 AM");
   const [horaFinReporte] = useState("5:30 PM");
 
   const [chatMode, setChatMode] = useState<"normal" | "ia">("ia");
