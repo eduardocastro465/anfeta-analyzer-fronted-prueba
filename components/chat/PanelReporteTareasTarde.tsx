@@ -1353,10 +1353,7 @@ function PiePanelReporte({
     : currentUserEmail;
 
   const handleMainAction = () => {
-    if (esHoraReporte) {
-      onOpenReport?.();
-      return;
-    }
+    if (esHoraReporte) { onOpenReport?.(); return; }
     if (countSeleccionadas === 0) return;
     onOpenReporteModal?.();
   };
