@@ -108,6 +108,7 @@ export function ChatContainer({
   const [isPiPMode, setIsPiPMode] = useState(false);
   const pipWindowRef = useRef<Window | null>(null);
   const [showPiPOverlay, setShowPiPOverlay] = useState(false);
+  const isAdmin = colaborador.email === "jjohn@pprin.com";
 
   const router = useRouter();
   const { toast } = useToast();
@@ -546,7 +547,7 @@ export function ChatContainer({
       }`}
     >
       {/* Overlay móvil */}
-      {isMobile && sidebarOpen && (
+      {isMobile && sidebarOpen && !isAdmin && (
         <div
           className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
@@ -557,6 +558,7 @@ export function ChatContainer({
       {/* ── Sidebar ──────────────────────────────────────────────── */}
       <aside
         className={`
+          ${isAdmin ? "hidden" : ""}
           fixed left-0 top-0 h-screen z-30 flex flex-col
           transition-all duration-300 ease-in-out
           ${
@@ -823,11 +825,11 @@ export function ChatContainer({
       </aside>
 
       {/* Botón toggle desktop */}
-      {!isMobile && (
+      {!isMobile && !isAdmin && (
         <button
-           onClick={() => setSidebarOpen(!sidebarOpen)}
-    tabIndex={showSettings ? -1 : 0}
-    className={`
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          tabIndex={showSettings ? -1 : 0}
+          className={`
       fixed z-40 top-1/2 -translate-y-1/2
       transition-[left] duration-300 p-1.5 rounded-r-lg
       hidden md:flex items-center justify-center
@@ -851,12 +853,10 @@ export function ChatContainer({
 
       <div
         className={`
-          flex-1 min-w-0 max-w-full overflow-hidden
-          transition-all duration-300
-          ${
-            isMobile ? "ml-0" : sidebarOpen ? "ml-64 sm:ml-72 md:ml-80" : "ml-0"
-          }
-        `}
+    flex-1 min-w-0 max-w-full overflow-hidden
+    transition-all duration-300
+    ${isAdmin ? "ml-0" : isMobile ? "ml-0" : sidebarOpen ? "ml-64 sm:ml-72 md:ml-80" : "ml-0"}
+  `}
       >
         {/* 👇 AQUÍ ESTÁ EL CAMBIO: Si es admin, muestra el Reporte del Día en iframe */}
         {colaborador.email === "jjohn@pprin.com" ? (
