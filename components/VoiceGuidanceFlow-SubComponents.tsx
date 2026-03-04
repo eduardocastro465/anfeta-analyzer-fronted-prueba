@@ -43,6 +43,7 @@ export const ConfirmStartStep: React.FC<{
   theme: string;
   confirmStartVoiceMode: () => void;
   cancelVoiceMode: () => void;
+  voskStatus: "idle" | "loading" | "ready" | "error";
 }> = ({
   activitiesWithTasks,
   totalActivities,
@@ -50,6 +51,7 @@ export const ConfirmStartStep: React.FC<{
   theme,
   confirmStartVoiceMode,
   cancelVoiceMode,
+  voskStatus = "idle",
 }) => (
   <div className="space-y-2 sm:space-y-4">
     {/* Métricas en 3 columnas para incluir tiempo total */}
@@ -166,14 +168,56 @@ export const ConfirmStartStep: React.FC<{
       ))}
     </div>
 
+    {/* Estado del modelo — solo mostrar si no está ready */}
+    {voskStatus !== "ready" && (
+      <div
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${
+          voskStatus === "loading"
+            ? theme === "dark"
+              ? "bg-amber-900/30 border-amber-700/40 text-amber-300"
+              : "bg-amber-50 border-amber-200 text-amber-700"
+            : voskStatus === "error"
+              ? theme === "dark"
+                ? "bg-red-900/30 border-red-700/40 text-red-300"
+                : "bg-red-50 border-red-200 text-red-600"
+              : theme === "dark"
+                ? "bg-gray-800 border-gray-700 text-gray-400"
+                : "bg-gray-50 border-gray-200 text-gray-500"
+        }`}
+      >
+        {voskStatus === "loading" ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+        ) : (
+          <Mic className="w-3.5 h-3.5 shrink-0" />
+        )}
+        <span className="font-medium">
+          {voskStatus === "loading"
+            ? "Cargando modelo de voz..."
+            : voskStatus === "error"
+              ? "Error al cargar el modelo de voz"
+              : "Preparando modelo de voz..."}
+        </span>
+      </div>
+    )}
+
     {/* Acciones */}
     <div className="flex gap-2">
       <Button
         onClick={confirmStartVoiceMode}
-        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm"
+        disabled={voskStatus !== "ready"}
+        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
-        Comenzar
+        {voskStatus === "loading" ? (
+          <>
+            <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 animate-spin" />
+            Cargando...
+          </>
+        ) : (
+          <>
+            <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
+            Comenzar
+          </>
+        )}
       </Button>
       <Button
         variant="outline"
@@ -627,7 +671,6 @@ export const ListeningExplanationStep: React.FC<{
           </p>
         </div>
       )}
-
 
       {/* Transcript */}
       {voiceTranscript && (

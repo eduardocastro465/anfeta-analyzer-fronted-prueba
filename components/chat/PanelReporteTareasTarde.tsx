@@ -368,12 +368,6 @@ export function PanelReporteTareasTarde({
         });
         return;
       }
-      if (!tarea.descripcion || tarea.descripcion.trim().length === 0) {
-        mostrarAlertaMensaje(
-          `"${tarea.nombre}" no tiene descripción del pendiente.`,
-        );
-        return;
-      }
       const emailDueño = tarea.explicacionVoz?.emailUsuario;
       if (emailDueño && emailDueño !== currentUserEmail) {
         mostrarAlertaMensaje(
@@ -393,7 +387,10 @@ export function PanelReporteTareasTarde({
   const seleccionarTodasTareas = useCallback(() => {
     const ids = actividadesConTareas.flatMap((a) =>
       a.tareasNoReportadas
-        .filter((t: any) => t.descripcion && t.descripcion.trim().length > 0)
+        .filter((t: any) => {
+          const emailDueño = t.explicacionVoz?.emailUsuario;
+          return !(emailDueño && emailDueño !== currentUserEmail);
+        })
         .map((t: any) => t.id),
     );
     if (ids.length === 0) {
@@ -453,14 +450,8 @@ export function PanelReporteTareasTarde({
     const idsPendientes = actividadesConTareas.flatMap((a) =>
       a.tareasNoReportadas
         .filter((t: any) => {
-          const tieneDesc = !!(
-            t.descripcion && t.descripcion.trim().length > 0
-          );
           const emailDueño = t.explicacionVoz?.emailUsuario;
-          const bloqueadaPorOtro = !!(
-            emailDueño && emailDueño !== currentUserEmail
-          );
-          return tieneDesc && !bloqueadaPorOtro;
+          return !(emailDueño && emailDueño !== currentUserEmail);
         })
         .map((t: any) => t.id),
     );
@@ -1138,7 +1129,7 @@ function TareaPendiente({
     typeof tarea.queHizo === "string" &&
     tarea.queHizo.trim().length > 0
   );
-  const estaBloqueada = !tieneDescripcion || estaBloqueadaPorOtro;
+  const estaBloqueada = estaBloqueadaPorOtro;
   const estaExplicada = tieneDescripcion && tieneQueHizo;
 
   return (

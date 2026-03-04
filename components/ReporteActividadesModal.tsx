@@ -246,7 +246,6 @@ export function ReporteActividadesModal({
     }
     return actividadesDiarias.flatMap((actividad) =>
       actividad.pendientes
-        .filter((p) => p.descripcion && p.descripcion.trim().length > 0)
         .map((p) => ({
           pendienteId: p.pendienteId,
           nombre: p.nombre,

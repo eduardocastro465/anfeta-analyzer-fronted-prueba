@@ -12,7 +12,7 @@ interface UseVoskRealtimeOptions {
   onPartial?: (text: string) => void;
   onFinal?: (text: string) => void;
   onError?: (error: Error) => void;
-  silenceThresholdMs?: number; // override del timeout de silencio
+  silenceThresholdMs?: number;
 }
 
 interface UseVoskRealtimeReturn {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   AlertCircle,
   Headphones,
@@ -42,6 +42,7 @@ interface ExtendedVoiceGuidanceFlowProps extends VoiceGuidanceFlowProps {
     stopRealtime: () => Promise<string>;
     cancelRealtime: () => void;
   };
+  voskStatus?: "idle" | "loading" | "ready" | "error";
 }
 
 export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
@@ -75,6 +76,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
   selectedTaskIds = [],
   autoSendVoice,
   voskRealtime,
+  voskStatus = "idle",
 }) => {
   // CREAR UN VALOR POR DEFECTO SEGURO PARA autoSendVoice
   const safeAutoSendVoice = useMemo(
@@ -369,7 +371,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
 
   return (
     <div
-   className={`fixed inset-0 z-50 flex items-center justify-center 
+      className={`fixed inset-0 z-50 flex items-center justify-center 
   p-4 sm:p-8 lg:p-12
   ${
     theme === "dark"
@@ -543,6 +545,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
               theme={theme}
               confirmStartVoiceMode={confirmStartVoiceMode}
               cancelVoiceMode={handleCancelVoiceMode}
+              voskStatus={voskRealtime?.status ?? voskStatus ?? "idle"}
             />
           )}
 

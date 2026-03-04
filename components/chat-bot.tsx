@@ -62,7 +62,6 @@ import { ChatThemeProvider } from "@/context/ThemeContext";
 import { TurnoPanel } from "@/components/TurnoPanel";
 import {
   useVoiceEngine,
-  VoiceEngineSelector,
   type VoiceEngine,
 } from "./Voiceengineselector";
 
@@ -230,6 +229,12 @@ export function ChatBot({
   useEffect(() => {
     panelRefreshedForRef.current = null;
   }, [conversacionActiva]);
+
+  useEffect(() => {
+    if (voiceMode.voiceMode && engine === "vosk" && voskStatus === "idle") {
+      voskRealtime.loadModel();
+    }
+  }, [voiceMode.voiceMode, engine]);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -1893,6 +1898,7 @@ export function ChatBot({
           setVoiceStep={voiceMode.setVoiceStep}
           setCurrentListeningFor={voiceMode.setCurrentListeningFor}
           selectedTaskIds={selectedTaskIds}
+          voskStatus={voskStatus}
         />
 
         <div

@@ -19,6 +19,7 @@ interface UseVoiceEngineReturn {
   voskStatus: "idle" | "loading" | "ready" | "error";
 }
 
+// ==================== HOOK ====================
 export function useVoiceEngine({
   onVoskPartial,
   onVoskFinal,
@@ -42,6 +43,7 @@ export function useVoiceEngine({
     [voskRealtime],
   );
 
+  // ==================== SERVICIO DE TRANSCRIPCION CON VOSK ====================
   const transcriptionService = useCallback(
     (audioBlob: Blob): Promise<string> => transcribirAudioCliente(audioBlob),
     [],
