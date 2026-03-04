@@ -79,7 +79,10 @@ export interface Colaborador {
   email: string;
   phone?: string;
   collaboratorId: string;
-  avatar?: string;
+  avatar?: {
+    url: string;
+    dropboxPath: string;
+  };
 }
 
 export interface TaskReport {

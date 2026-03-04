@@ -282,8 +282,6 @@ export function ChatContainer({
     init();
   }, [router, toast]);
 
-  
-
   const refrescarHistorial = async () => {
     try {
       setSidebarCargando(true);
@@ -846,18 +844,32 @@ export function ChatContainer({
                 : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
             }`}
           >
-            <div className="w-7 h-7 rounded-full bg-[#6841ea] flex items-center justify-center shrink-0">
-              <span className="text-white text-[10px] font-bold">
-                {colaborador.firstName
-                  ? colaborador.firstName
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()
-                  : colaborador.email.slice(0, 2).toUpperCase()}
-              </span>
-            </div>
+            {(() => {
+              const avatarUrl =
+                typeof colaborador.avatar === "string"
+                  ? colaborador.avatar
+                  : colaborador.avatar?.url;
+              return avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={colaborador.firstName ?? colaborador.email}
+                  className="w-7 h-7 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[#6841ea] flex items-center justify-center shrink-0">
+                  <span className="text-white text-[10px] font-bold">
+                    {colaborador.firstName
+                      ? colaborador.firstName
+                          .split(" ")
+                          .map((n: string) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : colaborador.email.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+              );
+            })()}
             <div className="flex-1 min-w-0 text-left">
               <p className="text-xs font-medium truncate">
                 {colaborador.firstName ?? colaborador.email}
@@ -895,6 +907,7 @@ export function ChatContainer({
           colaborador={{
             nombre: colaborador.firstName,
             email: colaborador.email,
+            avatar: colaborador.avatar,
           }}
           onGuardarPreferencias={onGuardarPreferencias}
         />

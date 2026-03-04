@@ -281,7 +281,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
                     <div className="flex items-center gap-3">
                       {colaboradorInfo.avatar ? (
                         <img
-                          src={colaboradorInfo.avatar}
+                          src={colaboradorInfo.avatar.url}
                           alt={getDisplayName(colaboradorInfo)}
                           className="w-10 h-10 rounded-full object-cover ring-1 ring-white/50 dark:ring-neutral-700/50"
                         />

@@ -1784,7 +1784,6 @@ export function ChatBot({
       if (fetchingAnalysisRef.current) return;
 
       try {
-        console.log("Polling 10AM activado");
         const data = await obtenerActividadesConRevisiones({
           email: colaborador.email,
           showAll: false,
@@ -1802,7 +1801,7 @@ export function ChatBot({
       } catch (error) {
         console.error("❌ Error en polling 10AM:", error);
       }
-    }, 25_000); // cada 25 segundos
+    }, 15_000); // cada 15 segundos
 
     return () => clearInterval(pollingInterval);
   }, [colaborador.email]);

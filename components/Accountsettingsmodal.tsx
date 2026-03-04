@@ -31,7 +31,7 @@ interface AccountSettingsModalProps {
   colaborador: {
     nombre?: string;
     email: string;
-    avatar?: string;
+    avatar?: string | { url: string; dropboxPath: string };
   };
   onGuardarPreferencias?: (prefs: {
     velocidadVoz: number;
@@ -173,19 +173,25 @@ export function AccountSettingsModal({
               <div
                 className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? "bg-[#1a1a1a]" : "bg-gray-50"}`}
               >
-                <div className="w-9 h-9 rounded-full bg-[#6841ea] flex items-center justify-center shrink-0">
-                  {colaborador.avatar ? (
+                {(() => {
+                  const avatarUrl =
+                    typeof colaborador.avatar === "string"
+                      ? colaborador.avatar
+                      : colaborador.avatar?.url;
+                  return avatarUrl ? (
                     <img
-                      src={colaborador.avatar}
+                      src={avatarUrl}
                       alt="avatar"
-                      className="w-full h-full rounded-full object-cover"
+                      className="w-9 h-9 rounded-full object-cover shrink-0"
                     />
                   ) : (
-                    <span className="text-white text-[11px] font-bold">
-                      {initials}
-                    </span>
-                  )}
-                </div>
+                    <div className="w-9 h-9 rounded-full bg-[#6841ea] flex items-center justify-center shrink-0">
+                      <span className="text-white text-[11px] font-bold">
+                        {initials}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="min-w-0 flex-1">
                   {colaborador.nombre && (
                     <p className="text-xs font-medium truncate">
