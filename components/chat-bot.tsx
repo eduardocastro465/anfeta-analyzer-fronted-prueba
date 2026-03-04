@@ -114,7 +114,7 @@ export function ChatBot({
   const fetchingAnalysisRef = useRef(false);
   const welcomeSentRef = useRef(false);
   const actualizarDatosRef = useRef<() => Promise<void>>(async () => {});
-
+  const panelRefreshedForRef = useRef<string | null>(null);
   // ==================== HOOKS ====================
   const router = useRouter();
   const { toast } = useToast();
@@ -1020,6 +1020,25 @@ export function ChatBot({
     assistantAnalysisRef,
     scrollRef,
   });
+
+  useEffect(() => {
+    if (!conversacionActiva) return;
+    if (!esConversacionDeHoy) return;
+    if (!assistantAnalysisRef.current) return;
+    if (messages.length <= 1) return;
+    if (panelRefreshedForRef.current === conversacionActiva) return;
+
+    panelRefreshedForRef.current = conversacionActiva;
+
+    const timer = setTimeout(() => {
+      actualizarPanelTurno(
+        turnoActualRef.current,
+        assistantAnalysisRef.current!,
+      );
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [conversacionActiva, messages.length, esConversacionDeHoy]);
 
   // useEffect(() => {
   //   if (!conversacionActiva || !assistantAnalysis || messages.length === 0)

@@ -1,5 +1,5 @@
 // components/chat/ChatInputBar.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send, Mic, Bot, Volume2, X } from "lucide-react";
@@ -41,10 +41,13 @@ export function ChatInputBar({
   onToggleChatMode,
   isSpeaking = false,
 }: ChatInputBarProps) {
+  // Validar si el usuario puede escribir
   const isInteractionDisabled =
     !canUserType || isSpeaking || isLoadingIA || isTranscribing;
   const hasTopStatus =
     isRecording || isTranscribing || isSpeaking || chatMode === "ia";
+  const [isPendingClick, setIsPendingClick] = useState(false);
+
   const dark = theme === "dark";
 
   const getPlaceholder = () => {
@@ -63,6 +66,24 @@ export function ChatInputBar({
     if (audioLevel < 60) return "bg-green-500";
     return "bg-green-600";
   };
+
+  useEffect(() => {
+    if (isLoadingIA || isRecording || isTranscribing) {
+      setIsPendingClick(false);
+    }
+  }, [isLoadingIA, isRecording, isTranscribing]);
+
+  const handleMicClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isRecording) {
+      onCancelRecording();
+    } else {
+      setIsPendingClick(true); // ← animación inmediata
+      onStartRecording();
+    }
+  };
+
+  const showLoadingAnim = isPendingClick || isLoadingIA;
 
   return (
     <div
@@ -251,10 +272,7 @@ export function ChatInputBar({
 
           <Button
             type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              isRecording ? onCancelRecording() : onStartRecording();
-            }}
+            onClick={handleMicClick}
             disabled={
               isTranscribing ||
               isSpeaking ||
@@ -268,7 +286,12 @@ export function ChatInputBar({
                 : "bg-gradient-to-br from-[#6841ea] to-[#5a36d4] hover:shadow-lg hover:shadow-[#6841ea]/40"
             }`}
           >
-            {isRecording ? (
+            {showLoadingAnim ? (
+              <>
+                <span className="absolute inset-0 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+                <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-white/40 relative z-10" />
+              </>
+            ) : isRecording ? (
               <>
                 <span className="absolute inset-0 rounded-full animate-ping bg-orange-500/40" />
                 <X className="w-4 h-4 sm:w-5 sm:h-5 text-white relative z-10" />
@@ -277,7 +300,6 @@ export function ChatInputBar({
               <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-white relative z-10" />
             )}
           </Button>
-
           <Button
             type="submit"
             disabled={!userInput.trim() || isInteractionDisabled}
