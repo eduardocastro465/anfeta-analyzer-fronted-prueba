@@ -228,6 +228,10 @@ export function ChatBot({
   const turnoActualRef = useRef<"mañana" | "tarde">(turnoActual);
 
   useEffect(() => {
+    panelRefreshedForRef.current = null;
+  }, [conversacionActiva]);
+
+  useEffect(() => {
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
@@ -1031,10 +1035,74 @@ export function ChatBot({
     panelRefreshedForRef.current = conversacionActiva;
 
     const timer = setTimeout(() => {
-      actualizarPanelTurno(
+      const analysis = assistantAnalysisRef.current;
+      if (!analysis) return;
+
+      const nuevoContenidoPanel = crearMensajePanel(
         turnoActualRef.current,
-        assistantAnalysisRef.current!,
+        analysis,
+        colaboradoresUnicosRef.current,
       );
+
+      setMessages((prev) => {
+        // Buscar si ya existe un TurnoPanel en el estado REAL (no closure)
+        const panelIndex = prev.findLastIndex(
+          (msg) =>
+            msg.isWide &&
+            React.isValidElement(msg.content) &&
+            (msg.content as any).type === TurnoPanel,
+        );
+
+        if (panelIndex !== -1) {
+          // ✅ Ya existe panel (primer load o ya inyectado) → solo actualizar
+          const updated = [...prev];
+          updated[panelIndex] = {
+            ...updated[panelIndex],
+            content: nuevoContenidoPanel,
+            timestamp: new Date(),
+          };
+          return updated;
+        }
+
+        // ❌ No hay panel → venimos de una restauración sin componentes
+        // Separar mensajes reales (user + bot texto) de componentes viejos
+        const conversacionReal = prev.filter(
+          (msg) =>
+            msg.type === "user" ||
+            (msg.type === "bot" && typeof msg.content === "string"),
+        );
+
+        // Si no hay mensajes reales aún, esperar siguiente render
+        if (conversacionReal.length === 0) return prev;
+
+        return [
+          {
+            id: `restored-welcome-${Date.now()}`,
+            type: "bot" as const,
+            content: messageTemplates.welcome.userInfo({
+              displayName,
+              email: colaborador.email,
+            }),
+            timestamp: new Date(),
+            isWide: false,
+          },
+          {
+            id: `restored-metrics-${Date.now() + 1}`,
+            type: "bot" as const,
+            content: messageTemplates.analysis.metrics({ analysis }),
+            timestamp: new Date(),
+            isWide: false,
+          },
+          {
+            id: `restored-panel-${Date.now() + 2}`,
+            type: "bot" as const,
+            content: nuevoContenidoPanel,
+            timestamp: new Date(),
+            isWide: true,
+          },
+          ...conversacionReal,
+        ];
+      });
     }, 150);
 
     return () => clearTimeout(timer);

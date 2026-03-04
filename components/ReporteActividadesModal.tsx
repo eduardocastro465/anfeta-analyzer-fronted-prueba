@@ -34,6 +34,7 @@ interface ReporteActividadesModalProps {
   tareasSeleccionadas?: Set<string>;
   actividadesConTareas?: any[];
   tareasReportadasMap?: Map<string, any>;
+  sessionId?: string | null;
 }
 
 type PasoModal =
@@ -65,6 +66,7 @@ export function ReporteActividadesModal({
   tareasSeleccionadas = new Set(),
   actividadesConTareas = [],
   tareasReportadasMap = new Map(),
+  sessionId,
 }: ReporteActividadesModalProps) {
   const isDark = theme === "dark";
 
@@ -359,6 +361,7 @@ export function ReporteActividadesModal({
         setPaso(esAclaracion ? "guardando-aclaracion" : "guardando-que-hizo");
 
         const data = await guardarReporteTarde({
+          sessionId: sessionId ?? null,
           actividadId: tareaCapturada.actividadId,
           pendienteId: tareaCapturada.pendienteId,
           queHizo: transcript,

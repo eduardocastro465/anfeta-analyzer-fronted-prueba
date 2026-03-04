@@ -680,6 +680,7 @@ export function PanelReporteTareasTarde({
             onGuardarReporte={handleGuardarReporte}
             guardandoReporte={guardandoReporte}
             turno={turno}
+            sessionId={assistantAnalysis?.sessionId ?? null}
           />
 
           <PiePanelReporte
@@ -1353,7 +1354,10 @@ function PiePanelReporte({
     : currentUserEmail;
 
   const handleMainAction = () => {
-    if (esHoraReporte) { onOpenReport?.(); return; }
+    if (esHoraReporte) {
+      onOpenReport?.();
+      return;
+    }
     if (countSeleccionadas === 0) return;
     onOpenReporteModal?.();
   };
