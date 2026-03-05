@@ -26,13 +26,16 @@ import {
   Sparkles,
   StopCircle,
   PauseCircle,
-  PlayCircle
+  PlayCircle,
+  LogOut
 } from "lucide-react";
 import {
   useActividadesData,
   obtenerFechaPorDias,
 } from "./hooks/useReporteData";
 import { Actividad, Tarea } from "./components/types";
+import { useRouter } from "next/navigation";
+import { logout } from "@/lib/api";
 
 // Declarar tipos para Web Speech API
 declare global {
