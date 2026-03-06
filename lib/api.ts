@@ -516,7 +516,7 @@ export async function consultarIAProyecto(
 
 // lib/api.ts
 
-export async function obtenerCambiosTareas() {
+export async function verificarCambiosAnfeta() {
   try {
     const response = await fetch(
       // `${BASE_URL_BACK}/assistant/verificar-cambios-tareas`,
@@ -536,7 +536,7 @@ export async function obtenerCambiosTareas() {
 
     return await response.json();
   } catch (error) {
-    console.error("❌ Error de conexión:", error);
+    console.log("Error de conexión:", error);
     return { success: false };
   }
 }

@@ -10,6 +10,7 @@ import {
   sendPendienteValidarYGuardar,
   chatGeneralIA,
   consultarIAProyecto,
+  verificarCambiosAnfeta,
 } from "@/lib/api";
 import { wsService } from "@/lib/websocket.service";
 import type {
@@ -112,6 +113,7 @@ export function ChatBot({
   const welcomeSentRef = useRef(false);
   const actualizarDatosRef = useRef<() => Promise<void>>(async () => {});
   const panelRefreshedForRef = useRef<string | null>(null);
+  const ultimoChecksumRef = useRef<string | null>(null);
   // ==================== HOOKS ====================
   const router = useRouter();
   const { toast } = useToast();
@@ -197,9 +199,9 @@ export function ChatBot({
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [horaInicioReporteMañana] = useState("9:00 AM");
-  const [horaFinReporteMañana] = useState("2:30 PM");
-  const [horaInicioReporte] = useState("2:31 PM");
-  const [horaFinReporte] = useState("5:30 PM");
+  const [horaFinReporteMañana] = useState("5:30 PM");
+  const [horaInicioReporte] = useState("5:31 PM");
+  const [horaFinReporte] = useState("6:30 PM");
 
   const [chatMode, setChatMode] = useState<"proyecto" | "general">(() => {
     const modo = preferencias?.modoAsistenteIA;
@@ -1723,6 +1725,12 @@ export function ChatBot({
       if (fetchingAnalysisRef.current) return;
 
       try {
+        const verificacion = await verificarCambiosAnfeta();
+
+        console.log("verificacion:", verificacion.mensaje);
+
+        if (!verificacion?.cambios) return;
+
         const data = await obtenerActividadesConRevisiones({
           email: colaborador.email,
           showAll: false,
