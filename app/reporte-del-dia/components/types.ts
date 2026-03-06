@@ -85,6 +85,11 @@ export interface ApiResponse {
     resumen: Resumen;
   };
 }
+export type Tarea = {
+  id: string;
+  titulo: string;
+  descripcion: string;
+};
 
 export type ViewMode = 'dashboard' | 'colaboradores' | 'detalles';
 export type DetalleView = 'general' | 'usuario' | 'actividad' | 'tarea';

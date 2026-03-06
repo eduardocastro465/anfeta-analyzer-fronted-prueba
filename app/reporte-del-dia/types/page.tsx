@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import LoadingScreen from "./components/LoadingScreen";
-import ErrorScreen from "./components/ErrorScreen";
+import LoadingScreen from "../components/LoadingScreen";
+import ErrorScreen from "../components/ErrorScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -29,8 +29,8 @@ import {
 import {
   useActividadesData,
   obtenerFechaPorDias,
-} from "../reporte-del-dia/hooks/useReporteData";
-import { Actividad, Tarea } from "./components/types";
+} from "@/app/reporte-del-dia/hooks/useReporteData";
+import { Actividad, Tarea } from "../components/types";
 
 // Modal de confirmación de dictado por voz
 const ModalConfirmacionDictado = ({ 

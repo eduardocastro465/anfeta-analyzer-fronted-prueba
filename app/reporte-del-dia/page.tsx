@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import LoadingScreen from "./components/LoadingScreen";
+
 import ErrorScreen from "./components/ErrorScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ import {
 import {
   useActividadesData,
   obtenerFechaPorDias,
-} from "../reporte-del-dia/hooks/useReporteData";
+} from "@/app/reporte-del-dia/hooks/useReporteData";
 import { Actividad, Tarea } from "./components/types";
 import { useRouter } from "next/navigation";
 import { logout } from "@/lib/api";
