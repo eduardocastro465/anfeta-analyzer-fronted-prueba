@@ -233,7 +233,6 @@ export function ChatBot({
     panelRefreshedForRef.current = null;
   }, [conversacionActiva]);
 
-  
   useEffect(() => {
     if (engine === "vosk" && voskStatus === "idle") {
       voskRealtime.loadModel();
@@ -244,7 +243,6 @@ export function ChatBot({
       voskRealtime.loadModel();
     }
   }, [voiceMode.voiceMode, engine]);
-
 
   useEffect(() => {
     if (theme === "dark") {
@@ -597,6 +595,7 @@ export function ChatBot({
     transcriptionService,
     stopRecording: audioRecorder.stopRecording,
     startRecording: audioRecorder.startRecording,
+    enableRealtimeTranscription: true,
     onTranscriptionComplete: async (transcript) => {
       addMessage("user", transcript);
       setIsTyping(true);
@@ -809,6 +808,13 @@ export function ChatBot({
     }
     setUserInput("");
   };
+
+  useEffect(() => {
+    if (engine !== "vosk" && !autoSendVoiceChat.isRecording) {
+      setUserInput(autoSendVoiceChat.transcript);
+    }
+  }, [autoSendVoiceChat.transcript, autoSendVoiceChat.isRecording]);
+
   const {
     isRecording,
     isTranscribing,
@@ -1579,9 +1585,7 @@ export function ChatBot({
       const colabs = extraerColaboradores(data);
       setColaboradoresUnicos(colabs);
       colaboradoresUnicosRef.current = colabs;
-      console.log("data", data);
       const adaptedData = adaptarDatosAnalisis(data);
-      console.log("adaptedData", adaptedData);
       assistantAnalysisRef.current = adaptedData;
       setAssistantAnalysis(adaptedData);
       setStep("ready");
@@ -1675,9 +1679,13 @@ export function ChatBot({
         }, 500);
       }
 
-      const mensajeAEnviar = userInput.trim();
-      addMessage("user", mensajeAEnviar);
+      const mensajeAEnviar = isRecording
+        ? autoSendVoiceChat.transcript.trim()
+        : userInput.trim();
+
+      if (!mensajeAEnviar) return;
       setUserInput("");
+      addMessage("user", mensajeAEnviar);
       setIsTyping(true);
       setIsLoadingIA(true);
       const sessionId =
@@ -1914,6 +1922,7 @@ export function ChatBot({
           isSpeaking={isSpeaking}
           onToggleChatMode={toggleChatMode}
           onStopRecording={handleStopRecording}
+          voiceTranscript={autoSendVoiceChat.transcript}
         />
 
         {/* Diálogo de éxito */}

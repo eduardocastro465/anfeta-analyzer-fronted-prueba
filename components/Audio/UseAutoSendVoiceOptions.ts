@@ -85,6 +85,7 @@ export function useAutoSendVoice({
   const realtimeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mimeTypeRef = useRef<string>("");
   const transcriptRef = useRef("");
+  const isTranscribingRealtimeRef = useRef(false);
 
   // ==================== SINCRONIZACIÓN STATE <-> REF ====================
   useEffect(() => {
@@ -108,38 +109,86 @@ export function useAutoSendVoice({
     [],
   );
 
+  // const startRealtimeWhisper = useCallback(() => {
+  //   if (!enableRealtimeTranscription) return;
+
+  //   realtimeChunksRef.current = [];
+
+  //   realtimeIntervalRef.current = setInterval(async () => {
+  //     if (!isRecordingRef.current || realtimeChunksRef.current.length === 0)
+  //       return;
+
+  //     const chunks = [...realtimeChunksRef.current];
+  //     realtimeChunksRef.current = [];
+
+  //     const chunkBlob = new Blob(chunks, {
+  //       type: mimeTypeRef.current || "audio/webm",
+  //     });
+
+  //     // ✅ Mínimo 10KB — chunks muy pequeños causan 400 en Groq
+  //     if (chunkBlob.size < 10000) {
+  //       // Devolver los chunks al buffer para acumular más
+  //       realtimeChunksRef.current = [...chunks, ...realtimeChunksRef.current];
+  //       return;
+  //     }
+
+  //     try {
+  //       const partialTranscript = await transcriptionService(chunkBlob);
+  //       if (partialTranscript?.trim()) {
+  //         setTranscript((prev) => (prev + " " + partialTranscript).trim());
+  //       }
+  //     } catch {
+  //       // silencioso
+  //     }
+  //   }, 3000); // ✅ Subir a 3 segundos para acumular más audio
+  // }, [enableRealtimeTranscription, transcriptionService]);
+
   const startRealtimeWhisper = useCallback(() => {
     if (!enableRealtimeTranscription) return;
 
+    console.log("startRealtimeWhisper iniciado");
     realtimeChunksRef.current = [];
 
     realtimeIntervalRef.current = setInterval(async () => {
+      console.log(
+        "interval tick - isRecording:",
+        isRecordingRef.current,
+        "chunks:",
+        realtimeChunksRef.current.length,
+      );
+
       if (!isRecordingRef.current || realtimeChunksRef.current.length === 0)
         return;
+      if (isTranscribingRealtimeRef.current) return;
 
-      const chunks = [...realtimeChunksRef.current];
-      realtimeChunksRef.current = [];
+      const allChunks = realtimeChunksRef.current;
+      const previewChunks =
+        allChunks.length > 15
+          ? [allChunks[0], ...allChunks.slice(-14)]
+          : allChunks;
 
-      const chunkBlob = new Blob(chunks, {
+      const chunkBlob = new Blob(previewChunks, {
         type: mimeTypeRef.current || "audio/webm",
       });
 
-      // ✅ Mínimo 10KB — chunks muy pequeños causan 400 en Groq
-      if (chunkBlob.size < 10000) {
-        // Devolver los chunks al buffer para acumular más
-        realtimeChunksRef.current = [...chunks, ...realtimeChunksRef.current];
+      console.log("blob size:", chunkBlob.size, "type:", chunkBlob.type);
+
+      if (chunkBlob.size < 5000) {
+        console.log("blob muy pequeño, esperando...");
         return;
       }
 
       try {
         const partialTranscript = await transcriptionService(chunkBlob);
+        console.log("transcript:", partialTranscript);
         if (partialTranscript?.trim()) {
-          setTranscript((prev) => (prev + " " + partialTranscript).trim());
+          setTranscript(partialTranscript.trim());
+          transcriptRef.current = partialTranscript.trim();
         }
-      } catch {
-        // silencioso
+      } catch (e) {
+        console.error("error transcribiendo:", e);
       }
-    }, 3000); // ✅ Subir a 3 segundos para acumular más audio
+    }, 1500); // 1.5 segundos
   }, [enableRealtimeTranscription, transcriptionService]);
 
   const stopRealtimeWhisper = useCallback(() => {
@@ -257,6 +306,7 @@ export function useAutoSendVoice({
     setAudioLevel(0);
 
     // Detener reconocimiento en tiempo real
+    stopRealtimeWhisper();
     stopRealtimeRecognition();
 
     // Detener detección de audio
@@ -274,7 +324,6 @@ export function useAutoSendVoice({
     }
 
     try {
-      // Obtener el audio grabado
       const audioBlob = await stopRecording();
 
       if (wasCancelledRef.current) {
@@ -283,12 +332,7 @@ export function useAutoSendVoice({
         return;
       }
 
-      // Si no hay transcripción en tiempo real, usar el servicio de transcripción
-      let finalTranscript = transcriptRef.current.trim();
-
-      if (!enableRealtimeTranscription || !finalTranscript) {
-        finalTranscript = await transcriptionService(audioBlob);
-      }
+      const finalTranscript = await transcriptionService(audioBlob);
 
       if (finalTranscript && finalTranscript.length > 0) {
         setTranscript(finalTranscript);
@@ -303,7 +347,6 @@ export function useAutoSendVoice({
     } finally {
       setIsTranscribing(false);
       isProcessingRef.current = false;
-      // Limpiar transcript después de enviar
       setTimeout(() => setTranscript(""), 500);
     }
   }, [
@@ -312,8 +355,8 @@ export function useAutoSendVoice({
     transcriptionService,
     onTranscriptionComplete,
     onError,
-    enableRealtimeTranscription,
     stopRealtimeRecognition,
+    stopRealtimeWhisper,
   ]);
 
   // ==================== TIMER DE SILENCIO ====================
@@ -412,15 +455,8 @@ export function useAutoSendVoice({
       setIsRecording(true);
 
       startAudioLevelDetection(stream);
-
-      if (
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition
-      ) {
-        startRealtimeRecognition(); // Chrome/Edge
-      } else {
-        startRealtimeWhisper(); // Opera/Firefox/otros
-      }
+      console.log("llamando startRealtimeWhisper directamente");
+      startRealtimeWhisper();
     } catch (error) {
       let errorMessage = "No se pudo acceder al micrófono";
 
@@ -474,16 +510,17 @@ export function useAutoSendVoice({
       micStreamRef.current.getTracks().forEach((track) => track.stop());
       micStreamRef.current = null;
     }
-
+    stopRealtimeWhisper();
     await stopRecording();
     setAudioLevel(0);
     setIsRecording(false);
     isRecordingRef.current = false;
     setTranscript("");
-  }, [stopRecording, stopRealtimeRecognition]);
+  }, [stopRecording, stopRealtimeRecognition, stopRealtimeWhisper]);
 
   // ==================== LIMPIEZA ====================
   const cleanup = useCallback(() => {
+    stopRealtimeWhisper();
     stopRealtimeRecognition();
 
     if (silenceTimerRef.current) {

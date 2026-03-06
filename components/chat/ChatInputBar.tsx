@@ -22,6 +22,7 @@ interface ChatInputBarProps {
   isLoadingIA?: boolean;
   isSpeaking?: boolean;
   onStopRecording?: () => void;
+  voiceTranscript?: string;
 }
 
 export function ChatInputBar({
@@ -40,6 +41,7 @@ export function ChatInputBar({
   isLoadingIA = false,
   onToggleChatMode,
   isSpeaking = false,
+  voiceTranscript = "",
 }: ChatInputBarProps) {
   // Validar si el usuario puede escribir
   const isInteractionDisabled = !canUserType || isLoadingIA || isTranscribing;
@@ -230,6 +232,17 @@ export function ChatInputBar({
           </div>
         </div>
 
+        {isRecording && voiceTranscript && (
+          <div
+            className={`mb-1.5 px-3 py-2 rounded-lg text-xs max-h-20 overflow-y-auto ${
+              dark
+                ? "bg-[#1a1a1a] border border-[#2a2a2a] text-gray-400"
+                : "bg-gray-50 border border-gray-200 text-gray-500"
+            }`}
+          >
+            {voiceTranscript}
+          </div>
+        )}
         {/* Form */}
         <form
           onSubmit={onSubmit}
@@ -239,7 +252,7 @@ export function ChatInputBar({
             ref={inputRef}
             type="text"
             placeholder={getPlaceholder()}
-            value={userInput}
+            value={isRecording ? "" : userInput}
             onChange={(e) => setUserInput(e.target.value)}
             disabled={isInteractionDisabled && !isRecording}
             className={`flex-1 h-10 sm:h-11 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6841ea] focus:border-[#6841ea] transition-all ${
@@ -300,7 +313,10 @@ export function ChatInputBar({
           </Button>
           <Button
             type="submit"
-            disabled={!userInput.trim() || isInteractionDisabled}
+            disabled={
+              (!userInput.trim() && !voiceTranscript.trim()) ||
+              isInteractionDisabled
+            }
             title={
               isSpeaking ? "Espera a que termine de hablar" : "Enviar mensaje"
             }
