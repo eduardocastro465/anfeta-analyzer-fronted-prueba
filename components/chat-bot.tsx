@@ -1507,84 +1507,6 @@ export function ChatBot({
     }
   };
 
-  const sendExplanationsToBackend = async () => {
-    if (!assistantAnalysis) return;
-    try {
-      voiceMode.setVoiceStep("sending");
-      voiceMode.setExpectedInputType("none");
-      speakText("Enviando tu reporte...");
-      const response = await guardarReporteTarde({
-        sessionId: assistantAnalysis.sessionId,
-        userId: colaborador.email,
-        projectId: assistantAnalysis.proyectoPrincipal,
-        explanations: voiceMode.taskExplanations
-          .filter((e) => e.explanation !== "[Tarea saltada]")
-          .map((e) => ({
-            taskId: e.taskId,
-            taskName: e.taskName,
-            activityTitle: e.activityTitle,
-            explanation: e.explanation,
-            priority: e.priority,
-            duration: e.duration,
-            recordedAt: e.timestamp.toISOString(),
-            confirmed: e.confirmed,
-          })),
-      });
-      if (response.ok) {
-        speakText("¡Correcto! Tu reporte ha sido enviado.");
-        toast({
-          title: "Reporte guardado",
-          description: "Tus actividades han sido registradas con éxito.",
-        });
-        try {
-          await fetchAssistantAnalysis(false, false, true);
-        } catch (e) {
-          console.error("❌ Error al actualizar:", e);
-        }
-      } else {
-        speakText("Hubo un error al enviar tu reporte.");
-        toast({
-          variant: "destructive",
-          title: "Error al enviar",
-          description: "No se pudo guardar el reporte en este momento.",
-        });
-      }
-      setTimeout(() => {
-        voiceMode.setVoiceStep("idle");
-        voiceMode.setVoiceMode(false);
-        voiceMode.setExpectedInputType("none");
-        setSelectedTaskIds([]);
-        setFilteredActivitiesForVoice([]);
-        addMessage(
-          "bot",
-          <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-            <div className="flex items-center gap-3">
-              <Check className="w-5 h-5 text-green-500" />
-              <div>
-                <span className="font-medium">Actividades guardadas</span>
-                <p
-                  className={`text-sm mt-1 ${theme === "dark" ? "text-gray-300" : "text-gray-700"}`}
-                >
-                  Has explicado{" "}
-                  {
-                    voiceMode.taskExplanations.filter(
-                      (e) => e.explanation !== "[Tarea saltada]",
-                    ).length
-                  }{" "}
-                  tareas.
-                </p>
-              </div>
-            </div>
-          </div>,
-        );
-      }, 1000);
-    } catch {
-      speakText("Hubo un error al enviar tu reporte.");
-      voiceMode.setVoiceStep("summary");
-      voiceMode.setExpectedInputType("confirmation");
-    }
-  };
-
   // ==================== MOSTRAR ANÁLISIS ====================
   const showAssistantAnalysis = async (
     analysis: AssistantAnalysis,
@@ -1633,6 +1555,7 @@ export function ChatBot({
       );
     }
   };
+
   const fetchAssistantAnalysis = async (
     showAll = false,
     isRestoration = false,
@@ -1653,6 +1576,20 @@ export function ChatBot({
       });
 
       console.log("data", data);
+
+      if (!data?.success || !data?.data?.revisionesPorActividad?.length) {
+        if (silentUpdate) {
+          console.log("silentUpdate", silentUpdate);
+          toast({
+            variant: "destructive",
+            title: "Sin conexión",
+            description: "No se pudo actualizar, el servidor no responde.",
+            duration: 3000,
+          });
+          return;
+        }
+        throw new Error("Sin datos válidos");
+      }
 
       const colabs = extraerColaboradores(data);
       setColaboradoresUnicos(colabs);
@@ -1696,6 +1633,12 @@ export function ChatBot({
         });
       } else {
         console.error("❌ Error en actualización silenciosa:", error);
+        toast({
+          variant: "destructive",
+          title: "Sin conexión",
+          description: "No se pudo actualizar, el servidor no responde.",
+          duration: 3000,
+        });
       }
     } finally {
       if (!silentUpdate) setIsTyping(false);
@@ -1833,9 +1776,6 @@ export function ChatBot({
 
       try {
         const verificacion = await verificarCambiosAnfeta();
-
-        console.log("verificacion:", verificacion.mensaje);
-
         if (!verificacion?.cambios) return;
 
         const data = await obtenerActividadesConRevisiones({
@@ -1853,10 +1793,21 @@ export function ChatBot({
         setAssistantAnalysis(adaptedData);
         actualizarPanelTurno(turnoActualRef.current, adaptedData);
       } catch (error) {
-        if (error instanceof TypeError && error.message === "Failed to fetch") {
+        if (
+          error instanceof TypeError ||
+          (error as any)?.message?.includes("fetch") ||
+          (error as any)?.message?.includes("conexión") ||
+          (error as any)?.code === "ERR_CONNECTION_REFUSED"
+        ) {
           return;
         }
         console.error("Error en polling:", error);
+        toast({
+          variant: "destructive",
+          title: "Sin conexión",
+          description: "No se pudo actualizar, el servidor no responde.",
+          duration: 3000,
+        });
       }
     }, 15_000); // cada 15 segundos
 

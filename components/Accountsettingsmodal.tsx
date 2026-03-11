@@ -197,7 +197,11 @@ export function AccountSettingsModal({
               <div className="flex items-center justify-end mb-4">
                 <button
                   onClick={onClose}
-                  className={`p-1.5 rounded-xl transition-colors ${d ? "text-gray-500 hover:text-white hover:bg-white/8" : "text-gray-400 hover:text-gray-700 hover:bg-black/6"}`}
+                  className={`p-2 rounded-lg transition-all duration-200 active:scale-95 ${
+                    d
+                      ? "bg-white/8 text-[#888] hover:bg-white/15 hover:text-white"
+                      : "bg-black/6 text-[#999] hover:bg-black/12 hover:text-[#333]"
+                  }`}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -478,7 +482,11 @@ export function AccountSettingsModal({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSection("main")}
-                  className={`p-1.5 rounded-xl transition-colors ${d ? "text-gray-500 hover:text-white hover:bg-white/8" : "text-gray-400 hover:text-gray-700 hover:bg-black/6"}`}
+                  className={`p-2 rounded-lg transition-all duration-200 active:scale-95 ${
+                    d
+                      ? "bg-white/8 text-[#888] hover:bg-white/15 hover:text-white"
+                      : "bg-black/6 text-[#999] hover:bg-black/12 hover:text-[#333]"
+                  }`}
                 >
                   <ChevronRight className="w-4 h-4 rotate-180" />
                 </button>

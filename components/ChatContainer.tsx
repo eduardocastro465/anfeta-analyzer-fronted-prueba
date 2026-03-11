@@ -411,9 +411,6 @@ export function ChatContainer({
         title: "Error al cargar conversación",
         description: "No se pudieron cargar los mensajes anteriores",
       });
-      setMensajesRestaurados([]);
-      setAnalisisRestaurado(null);
-      setConversacionActiva(sessionId);
     } finally {
       setCargandoConversacionId(null);
     }

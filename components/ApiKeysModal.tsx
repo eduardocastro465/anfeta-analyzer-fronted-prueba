@@ -449,10 +449,10 @@ export function ApiKeysModal({
             {tieneKeysGuardadas && onClose ? (
               <button
                 onClick={onClose}
-                className={`p-2 rounded-xl transition-colors ${
+                className={`p-2 rounded-lg transition-all duration-200 active:scale-95 ${
                   d
-                    ? "text-[#444] hover:text-white hover:bg-white/8"
-                    : "text-[#bbb] hover:text-[#555] hover:bg-black/6"
+                    ? "bg-white/8 text-[#888] hover:bg-white/15 hover:text-white"
+                    : "bg-black/6 text-[#999] hover:bg-black/12 hover:text-[#333]"
                 }`}
               >
                 <X className="w-4 h-4" />
