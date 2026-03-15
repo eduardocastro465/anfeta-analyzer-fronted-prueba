@@ -15,14 +15,13 @@ export default function Home() {
   const [currentColaborador, setCurrentColaborador] =
     useState<Colaborador | null>(null);
   const [userActividades, setUserActividades] = useState<Actividad[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [preferencias, setPreferencias] = useState({
     tema: "AUTO",
     velocidadVoz: 1,
     idiomaVoz: "es-MX",
   });
-  // 🔹 Recuperar sesión
+
   useEffect(() => {
     try {
       const savedColaborador = localStorage.getItem("colaborador");
@@ -41,8 +40,6 @@ export default function Home() {
       });
     } catch (error) {
       clearSession();
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -51,7 +48,6 @@ export default function Home() {
     localStorage.removeItem("actividades");
   };
 
-  // 🔹 Login
   const handleLogin = async (
     colaborador: Colaborador,
     actividades: Actividad[],
@@ -59,18 +55,32 @@ export default function Home() {
     localStorage.setItem("colaborador", JSON.stringify(colaborador));
     localStorage.setItem("actividades", JSON.stringify(actividades));
 
+    const temaManual =
+      localStorage.getItem("tema_manual") === "true"
+        ? (localStorage.getItem("tema") as string)
+        : null;
+
     const prefs = await obtenerPreferenciasUsuario();
-    if (prefs.success) setPreferencias(prefs.preferencias);
-    localStorage.setItem("tema", prefs.preferencias.tema);
+    const prefsFinales = temaManual
+      ? { ...prefs.preferencias, tema: temaManual }
+      : prefs.preferencias;
+
+    if (temaManual) {
+      await guardarPreferenciasUsuario(prefsFinales);
+      localStorage.removeItem("tema_manual");
+    }
+
+    if (prefs.success) setPreferencias(prefsFinales);
+    localStorage.setItem("tema", prefsFinales.tema);
+
     setCurrentColaborador(colaborador);
     setUserActividades(actividades);
     setIsLoggedIn(true);
   };
 
-  // 🔹 Logout DEFINITIVO
   const handleLogout = async () => {
     try {
-      await logout(); // backend (cookies / jwt)
+      await logout();
     } catch (e) {
     } finally {
       clearSession();
@@ -81,28 +91,23 @@ export default function Home() {
     }
   };
 
-  // 🔹 Función para navegar a reportes
   const handleViewReports = () => {
-    // Redirige a la página de reportes (ColaboradoresView)
     window.location.href = "/reporte-del-dia";
   };
 
-  // 🔹 Login
   if (!isLoggedIn || !currentColaborador) {
     return <LoginForm onLogin={handleLogin} />;
   }
 
-  // 🔹 Chat
   return (
     <ChatContainer
       key={currentColaborador.email}
       colaborador={currentColaborador}
       actividades={userActividades}
       onLogout={handleLogout}
-      onViewReports={handleViewReports} // 🔹 Pasa la función al ChatContainer
-      preferencias={preferencias} // ← nuevo
+      onViewReports={handleViewReports}
+      preferencias={preferencias}
       onGuardarPreferencias={async (nuevasPrefs) => {
-        // ← nuevo
         const result = await guardarPreferenciasUsuario(nuevasPrefs);
         if (result.success) setPreferencias(nuevasPrefs);
         localStorage.setItem("tema", nuevasPrefs.tema);

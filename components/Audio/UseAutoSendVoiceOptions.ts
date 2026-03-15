@@ -59,7 +59,7 @@ interface UseAutoSendVoiceReturn {
 
 export function useAutoSendVoice({
   silenceThreshold = 3000,
-  speechThreshold = 3, //
+  speechThreshold = 8, // para que detecte la voz mas rapido
   onTranscriptionComplete,
   onError,
   transcriptionService,
@@ -89,6 +89,7 @@ export function useAutoSendVoice({
   const transcriptRef = useRef("");
   const isTranscribingRealtimeRef = useRef(false);
   const [silenceCountdown, setSilenceCountdown] = useState<number | null>(null);
+  const countIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ==================== SINCRONIZACIÓN STATE <-> REF ====================
   useEffect(() => {
@@ -335,25 +336,30 @@ export function useAutoSendVoice({
       clearTimeout(silenceTimerRef.current);
     }
 
-    // silenceTimerRef.current = setTimeout(() => {
-    //   processAndSendAudio();
-    // }, silenceThreshold);
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (countIntervalRef.current) {
+      clearInterval(countIntervalRef.current);
+      countIntervalRef.current = null;
+    }
     setSilenceCountdown(Math.ceil(silenceThreshold / 1000));
-  const countInterval = setInterval(() => {
-    setSilenceCountdown((prev) => {
-      if (prev === null || prev <= 1) {
-        clearInterval(countInterval);
-        return null;
-      }
-      return prev - 1;
-    });
-  }, 1000);
+    const countInterval = setInterval(() => {
+      setSilenceCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(countInterval);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-   silenceTimerRef.current = setTimeout(() => {
-    clearInterval(countInterval);
-    setSilenceCountdown(null);
-    processAndSendAudio();
-  }, silenceThreshold);
+    silenceTimerRef.current = setTimeout(() => {
+      clearInterval(countInterval);
+      setSilenceCountdown(null);
+      processAndSendAudio();
+    }, silenceThreshold);
   }, [silenceThreshold, processAndSendAudio]);
 
   // ==================== DETECCIÓN DE NIVEL DE AUDIO ====================
@@ -384,24 +390,33 @@ export function useAutoSendVoice({
           }
 
           analyser.getByteFrequencyData(dataArray);
-
           const sum = dataArray.reduce((a, b) => a + b, 0);
           const average = sum / dataArray.length;
           const normalizedLevel = Math.min(average * 2, 100);
-
           setAudioLevel(normalizedLevel);
 
-          frameCount++;
-
           if (average > speechThreshold) {
-            // 🎤 VOZ DETECTADA
-            resetSilenceTimer();
+            // 🎤 VOZ — cancelar countdown
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current);
+              silenceTimerRef.current = null;
+            }
+            if (countIntervalRef.current) {
+              clearInterval(countIntervalRef.current);
+              countIntervalRef.current = null;
+            }
+            setSilenceCountdown(null);
+          } else {
+            // 🔇 SILENCIO — iniciar countdown solo si no está corriendo
+            if (!silenceTimerRef.current && !isProcessingRef.current) {
+              resetSilenceTimer();
+            }
           }
 
           animationFrameRef.current = requestAnimationFrame(checkAudioLevel);
         };
 
-        resetSilenceTimer();
+        // resetSilenceTimer();
         animationFrameRef.current = requestAnimationFrame(checkAudioLevel);
       } catch (error) {
         onError?.(
@@ -494,6 +509,11 @@ export function useAutoSendVoice({
       micStreamRef.current.getTracks().forEach((track) => track.stop());
       micStreamRef.current = null;
     }
+
+    if (countIntervalRef.current) {
+      clearInterval(countIntervalRef.current);
+      countIntervalRef.current = null;
+    }
     stopRealtimeWhisper();
     await stopRecording();
     setAudioLevel(0);
@@ -542,6 +562,6 @@ export function useAutoSendVoice({
     cancelVoiceRecording,
     processAndSendAudio,
     cleanup,
-    silenceCountdown
+    silenceCountdown,
   };
 }

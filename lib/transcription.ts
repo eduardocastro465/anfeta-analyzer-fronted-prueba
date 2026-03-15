@@ -13,7 +13,6 @@ const keysCache: KeysCache = {
 };
 
 let groqIndiceActual = 0;
-let geminiIndiceActual = 0;
 
 async function cargarKeys(): Promise<void> {
   if (keysCache.cargadas) return;
@@ -37,7 +36,6 @@ export function invalidarCacheKeys(): void {
   keysCache.gemini = "";
   keysCache.cargadas = false;
   groqIndiceActual = 0;
-  geminiIndiceActual = 0;
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -52,12 +50,9 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 async function transcribirConGroq(audioBlob: Blob): Promise<string> {
-  console.log("Transcribiendo con Groq...");
   const keys = keysCache.groq;
-
-  if (keys.length === 0) {
+  if (keys.length === 0)
     throw new Error("No hay API keys de Groq configuradas");
-  }
 
   for (let i = 0; i < keys.length; i++) {
     const apiKey = keys[groqIndiceActual];
@@ -79,17 +74,21 @@ async function transcribirConGroq(audioBlob: Blob): Promise<string> {
         },
       );
 
-      if (response.status === 429 && i < keys.length - 1) continue;
-
-      if (!response.ok) {
-        throw new Error(
-          `Error en transcripción: ${response.status} ${response.statusText}`,
+      if (response.status === 429) {
+        console.warn(`⚠️ Key ${i + 1} con rate limit`);
+        if (i < keys.length - 1) continue;
+        throw Object.assign(
+          new Error("Rate limit alcanzado en todas las keys"),
+          { status: 429 },
         );
       }
 
+      if (!response.ok) throw new Error(`Error ${response.status}`);
+
       const data = await response.json();
       return data.text || "";
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 429) throw error;
       if (i < keys.length - 1) continue;
       throw error;
     }
@@ -135,7 +134,9 @@ async function transcribirConGemini(audioBlob: Blob): Promise<string> {
     );
 
     if (!response.ok) {
-      throw new Error(`Gemini error: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Gemini error: ${response.status} ${response.statusText}`,
+      );
     }
 
     const data = await response.json();
@@ -146,7 +147,9 @@ async function transcribirConGemini(audioBlob: Blob): Promise<string> {
   }
 }
 
-export async function transcribirAudioCliente(audioBlob: Blob): Promise<string> {
+export async function transcribirAudioCliente(
+  audioBlob: Blob,
+): Promise<string> {
   await cargarKeys();
 
   try {

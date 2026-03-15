@@ -378,6 +378,12 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
     return `Actividad ${currentActivityIndex + 1}, Tarea ${currentTaskIndex + 1} de ${safeActivityTasksCount}`;
   };
 
+  console.log("🟢 COUNTDOWN PADRE:", {
+    isVoskEngine,
+    voskRealtimeCountdown: voskRealtime?.silenceCountdown,
+    autoSendVoiceCountdown: autoSendVoice?.silenceCountdown,
+  }); 
+
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center 
@@ -555,6 +561,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
               confirmStartVoiceMode={confirmStartVoiceMode}
               cancelVoiceMode={handleCancelVoiceMode}
               voskStatus={voskRealtime?.status ?? voskStatus ?? "idle"}
+              isVoskEngine={isVoskEngine}
             />
           )}
 
@@ -611,7 +618,7 @@ export const VoiceGuidanceFlow: React.FC<ExtendedVoiceGuidanceFlowProps> = ({
               voskSilenceCountdown={
                 isVoskEngine
                   ? (voskRealtime?.silenceCountdown ?? null)
-                  : (safeAutoSendVoice.silenceCountdown ?? null)
+                  : (autoSendVoice?.silenceCountdown ?? null)
               }
               isVoskEngine={isVoskEngine}
               setVoiceStep={setVoiceStep}

@@ -44,6 +44,7 @@ export const ConfirmStartStep: React.FC<{
   confirmStartVoiceMode: () => void;
   cancelVoiceMode: () => void;
   voskStatus: "idle" | "loading" | "ready" | "error";
+  isVoskEngine: boolean;
 }> = ({
   activitiesWithTasks,
   totalActivities,
@@ -52,184 +53,187 @@ export const ConfirmStartStep: React.FC<{
   confirmStartVoiceMode,
   cancelVoiceMode,
   voskStatus = "idle",
-}) => (
-  <div className="space-y-2 sm:space-y-4">
-    {/* Métricas en 3 columnas para incluir tiempo total */}
-    <div className="grid grid-cols-3 gap-1.5">
-      <div
-        className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
-      >
-        <div className="flex items-center gap-1 mb-0.5">
-          <FolderOpen className="w-3 h-3 text-blue-500" />
-          <span className="text-[10px] sm:text-xs text-gray-500">Act.</span>
-        </div>
-        <div className="text-base sm:text-lg font-semibold leading-none">
-          {totalActivities}
-        </div>
-      </div>
-      <div
-        className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
-      >
-        <div className="flex items-center gap-1 mb-0.5">
-          <ListChecks className="w-3 h-3 text-green-500" />
-          <span className="text-[10px] sm:text-xs text-gray-500">Tareas</span>
-        </div>
-        <div className="text-base sm:text-lg font-semibold leading-none">
-          {totalTasks}
-        </div>
-      </div>
-      <div
-        className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
-      >
-        <div className="flex items-center gap-1 mb-0.5">
-          <Clock className="w-3 h-3 text-purple-500" />
-          <span className="text-[10px] sm:text-xs text-gray-500">Min.</span>
-        </div>
-        <div className="text-base sm:text-lg font-semibold leading-none">
-          {activitiesWithTasks.reduce(
-            (sum, act) =>
-              sum + act.tareas.reduce((s, t) => s + t.duracionMin, 0),
-            0,
-          )}
-        </div>
-      </div>
-    </div>
-
-    {/* Lista de tareas */}
-    <div
-      className={`max-h-40 sm:max-h-72 overflow-y-auto rounded-lg border ${
-        theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
-      }`}
-    >
-      {activitiesWithTasks.map((activity, aIdx) => (
+  isVoskEngine = false,
+}) => {
+  const isDisabled = voskStatus !== "ready" && !isVoskEngine;
+  return (
+    <div className="space-y-2 sm:space-y-4">
+      {/* Métricas en 3 columnas para incluir tiempo total */}
+      <div className="grid grid-cols-3 gap-1.5">
         <div
-          key={activity.actividadId}
-          className={`${aIdx > 0 ? "border-t" : ""} ${
-            theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
-          }`}
+          className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
         >
-          {/* Cabecera actividad */}
-          <div
-            className={`px-2.5 py-1.5 sm:p-3 ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
-          >
-            <div className="flex items-center gap-1.5">
-              <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
-              <span className="font-medium text-[11px] sm:text-sm truncate flex-1">
-                {activity.actividadTitulo}
-              </span>
-              <span className="text-[10px] text-gray-500 shrink-0">
-                {activity.actividadHorario}
-              </span>
-            </div>
+          <div className="flex items-center gap-1 mb-0.5">
+            <FolderOpen className="w-3 h-3 text-blue-500" />
+            <span className="text-[10px] sm:text-xs text-gray-500">Act.</span>
           </div>
-
-          {/* Filas de tareas */}
-          {activity.tareas.map((tarea, tIdx) => (
-            <div
-              key={tarea.id}
-              className={`px-2.5 py-1.5 sm:p-3 flex items-center justify-between gap-2 ${
-                tIdx % 2 === 0
-                  ? theme === "dark"
-                    ? "bg-[#1a1a1a]"
-                    : "bg-white"
-                  : theme === "dark"
-                    ? "bg-[#1f1f1f]"
-                    : "bg-gray-50/60"
-              }`}
-            >
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <div
-                  className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    tarea.prioridad === "ALTA"
-                      ? "bg-red-500/20 text-red-500"
-                      : tarea.prioridad === "MEDIA"
-                        ? "bg-yellow-500/20 text-yellow-500"
-                        : "bg-green-500/20 text-green-500"
-                  }`}
-                >
-                  {tIdx + 1}
-                </div>
-                <span className="text-[11px] sm:text-sm truncate">
-                  {tarea.nombre}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-gray-400">
-                <Clock className="w-2.5 h-2.5" />
-                {tarea.duracionMin}m
-                {tarea.diasPendiente > 0 && (
-                  <span className="hidden sm:inline">
-                    {tarea.diasPendiente}d
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+          <div className="text-base sm:text-lg font-semibold leading-none">
+            {totalActivities}
+          </div>
         </div>
-      ))}
-    </div>
+        <div
+          className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
+        >
+          <div className="flex items-center gap-1 mb-0.5">
+            <ListChecks className="w-3 h-3 text-green-500" />
+            <span className="text-[10px] sm:text-xs text-gray-500">Tareas</span>
+          </div>
+          <div className="text-base sm:text-lg font-semibold leading-none">
+            {totalTasks}
+          </div>
+        </div>
+        <div
+          className={`p-2 rounded-md ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
+        >
+          <div className="flex items-center gap-1 mb-0.5">
+            <Clock className="w-3 h-3 text-purple-500" />
+            <span className="text-[10px] sm:text-xs text-gray-500">Min.</span>
+          </div>
+          <div className="text-base sm:text-lg font-semibold leading-none">
+            {activitiesWithTasks.reduce(
+              (sum, act) =>
+                sum + act.tareas.reduce((s, t) => s + t.duracionMin, 0),
+              0,
+            )}
+          </div>
+        </div>
+      </div>
 
-    {/* Estado del modelo — solo mostrar si no está ready */}
-    {voskStatus !== "ready" && (
+      {/* Lista de tareas */}
       <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${
-          voskStatus === "loading"
-            ? theme === "dark"
-              ? "bg-amber-900/30 border-amber-700/40 text-amber-300"
-              : "bg-amber-50 border-amber-200 text-amber-700"
-            : voskStatus === "error"
-              ? theme === "dark"
-                ? "bg-red-900/30 border-red-700/40 text-red-300"
-                : "bg-red-50 border-red-200 text-red-600"
-              : theme === "dark"
-                ? "bg-gray-800 border-gray-700 text-gray-400"
-                : "bg-gray-50 border-gray-200 text-gray-500"
+        className={`max-h-40 sm:max-h-72 overflow-y-auto rounded-lg border ${
+          theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
         }`}
       >
-        {voskStatus === "loading" ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-        ) : (
-          <Mic className="w-3.5 h-3.5 shrink-0" />
-        )}
-        <span className="font-medium">
-          {voskStatus === "loading"
-            ? "Cargando modelo de voz..."
-            : voskStatus === "error"
-              ? "Error al cargar el modelo de voz"
-              : "Preparando modelo de voz..."}
-        </span>
+        {activitiesWithTasks.map((activity, aIdx) => (
+          <div
+            key={activity.actividadId}
+            className={`${aIdx > 0 ? "border-t" : ""} ${
+              theme === "dark" ? "border-[#2a2a2a]" : "border-gray-200"
+            }`}
+          >
+            {/* Cabecera actividad */}
+            <div
+              className={`px-2.5 py-1.5 sm:p-3 ${theme === "dark" ? "bg-[#252527]" : "bg-gray-50"}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <FolderOpen className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 shrink-0" />
+                <span className="font-medium text-[11px] sm:text-sm truncate flex-1">
+                  {activity.actividadTitulo}
+                </span>
+                <span className="text-[10px] text-gray-500 shrink-0">
+                  {activity.actividadHorario}
+                </span>
+              </div>
+            </div>
+
+            {/* Filas de tareas */}
+            {activity.tareas.map((tarea, tIdx) => (
+              <div
+                key={tarea.id}
+                className={`px-2.5 py-1.5 sm:p-3 flex items-center justify-between gap-2 ${
+                  tIdx % 2 === 0
+                    ? theme === "dark"
+                      ? "bg-[#1a1a1a]"
+                      : "bg-white"
+                    : theme === "dark"
+                      ? "bg-[#1f1f1f]"
+                      : "bg-gray-50/60"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                  <div
+                    className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
+                      tarea.prioridad === "ALTA"
+                        ? "bg-red-500/20 text-red-500"
+                        : tarea.prioridad === "MEDIA"
+                          ? "bg-yellow-500/20 text-yellow-500"
+                          : "bg-green-500/20 text-green-500"
+                    }`}
+                  >
+                    {tIdx + 1}
+                  </div>
+                  <span className="text-[11px] sm:text-sm truncate">
+                    {tarea.nombre}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-gray-400">
+                  <Clock className="w-2.5 h-2.5" />
+                  {tarea.duracionMin}m
+                  {tarea.diasPendiente > 0 && (
+                    <span className="hidden sm:inline">
+                      {tarea.diasPendiente}d
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
-    )}
 
-    {/* Acciones */}
-    <div className="flex gap-2">
-      <Button
-        onClick={confirmStartVoiceMode}
-        disabled={voskStatus !== "ready"}
-        className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {voskStatus === "loading" ? (
-          <>
-            <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 animate-spin" />
-            Cargando...
-          </>
-        ) : (
-          <>
-            <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
-            Comenzar
-          </>
-        )}
-      </Button>
-      <Button
-        variant="outline"
-        onClick={cancelVoiceMode}
-        className="bg-transparent h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm"
-      >
-        Cancelar
-      </Button>
+      {/* Estado del modelo — solo mostrar si no está ready */}
+      {isVoskEngine && voskStatus !== "ready" && (
+        <div
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${
+            voskStatus === "loading"
+              ? theme === "dark"
+                ? "bg-amber-900/30 border-amber-700/40 text-amber-300"
+                : "bg-amber-50 border-amber-200 text-amber-700"
+              : voskStatus === "error"
+                ? theme === "dark"
+                  ? "bg-red-900/30 border-red-700/40 text-red-300"
+                  : "bg-red-50 border-red-200 text-red-600"
+                : theme === "dark"
+                  ? "bg-gray-800 border-gray-700 text-gray-400"
+                  : "bg-gray-50 border-gray-200 text-gray-500"
+          }`}
+        >
+          {voskStatus === "loading" ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+          ) : (
+            <Mic className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span className="font-medium">
+            {voskStatus === "loading"
+              ? "Cargando modelo de voz..."
+              : voskStatus === "error"
+                ? "Error al cargar el modelo de voz"
+                : "Preparando modelo de voz..."}
+          </span>
+        </div>
+      )}
+
+      {/* Acciones */}
+      <div className="flex gap-2">
+        <Button
+          onClick={confirmStartVoiceMode}
+          disabled={isVoskEngine && voskStatus !== "ready"}
+          className="flex-1 bg-[#6841ea] hover:bg-[#5a36d4] h-8 sm:h-10 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {voskStatus === "loading" ? (
+            <>
+              <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 animate-spin" />
+              Cargando...
+            </>
+          ) : (
+            <>
+              <Play className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5" />
+              Comenzar
+            </>
+          )}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={cancelVoiceMode}
+          className="bg-transparent h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm"
+        >
+          Cancelar
+        </Button>
+      </div>
     </div>
-  </div>
-);
-
+  );
+};
 // ============================================
 // ACTIVITY PRESENTATION STEP
 // ============================================
@@ -474,7 +478,6 @@ export const ListeningExplanationStep: React.FC<{
   voskSilenceCountdown: number | null;
   isVoskEngine: boolean;
   cancelRecording: () => void;
-  
 }> = ({
   currentListeningFor,
   retryCount,
@@ -493,52 +496,46 @@ export const ListeningExplanationStep: React.FC<{
   isVoskEngine,
   cancelRecording,
 }) => {
-  const [isValidating, setIsValidating] = React.useState(false);
-  const [countdown, setCountdown] = React.useState<number | null>(null);
+  // const [isValidating, setIsValidating] = React.useState(false);
+  const [isValidating] = React.useState(false);
+  // const [countdown, setCountdown] = React.useState<number | null>(null);
 
-  React.useEffect(() => {
-    if (isVoskEngine) return;
+  // React.useEffect(() => {
+  //   if (isVoskEngine) return;
+  //   if (!voiceTranscript || voiceTranscript.trim().length === 0) {
+  //     setCountdown(null);
+  //     return;
+  //   }
+  //   setCountdown(3);
 
-    let silenceTimer: NodeJS.Timeout | null = null;
-    let countdownInterval: NodeJS.Timeout | null = null;
+  //   const countdownInterval = setInterval(() => {
+  //     setCountdown((prev) => {
+  //       if (prev === null || prev <= 1) {
+  //         clearInterval(countdownInterval);
+  //         return null;
+  //       }
+  //       return prev - 1;
+  //     });
+  //   }, 1000);
 
-    if (voiceTranscript && voiceTranscript.trim().length > 0) {
-      setCountdown(3);
-      countdownInterval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(countdownInterval!);
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+  //   const silenceTimer = setTimeout(() => {
+  //     setCountdown(null);
+  //     if (recognitionRef.current) recognitionRef.current.stop();
+  //     setIsRecording(false);
+  //     setIsListening(false);
+  //     processVoiceExplanation(voiceTranscript);
+  //   }, 3000);
 
-      silenceTimer = setTimeout(() => {
-        setCountdown(null);
-        if (recognitionRef.current) recognitionRef.current.stop();
-        setIsRecording(false);
-        setIsListening(false);
-        processVoiceExplanation(voiceTranscript);
-      }, 3000);
-    }
+  //   return () => {
+  //     clearTimeout(silenceTimer);
+  //     clearInterval(countdownInterval);
+  //   };
+  // }, [voiceTranscript]);
 
-    return () => {
-      if (silenceTimer) clearTimeout(silenceTimer);
-      if (countdownInterval) clearInterval(countdownInterval);
-    };
-  }, [
-    voiceTranscript,
-    isVoskEngine,
-    processVoiceExplanation,
-    recognitionRef,
-    setIsRecording,
-    setIsListening,
-  ]);
-
+  console.log("🔴 COUNTDOWN:", voskSilenceCountdown, "| isVosk:", isVoskEngine);
   return (
     <div className="text-center space-y-2.5 sm:space-y-4">
-      {/* Ícono micrófono + contador */}
+      {/* Ícono micrófono — sin contador adentro */}
       <div className="relative w-14 h-14 sm:w-20 sm:h-20 mx-auto">
         <div
           className={`w-full h-full rounded-full flex items-center justify-center ${
@@ -554,9 +551,8 @@ export const ListeningExplanationStep: React.FC<{
           )}
         </div>
 
-        {/* Ondas de ping */}
         {!isValidating && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
@@ -571,45 +567,25 @@ export const ListeningExplanationStep: React.FC<{
             ))}
           </div>
         )}
-
-        {/* Contador junto al micrófono — siempre visible mientras graba */}
-        {!isValidating &&
-          (() => {
-            const activeCountdown = isVoskEngine
-              ? voskSilenceCountdown
-              : countdown;
-            const total = isVoskEngine ? 4 : 3;
-
-            // Si hay countdown activo, mostrar con número
-            if (activeCountdown !== null) {
-              return (
-                <div className="absolute -bottom-1 -right-1 flex items-center gap-1">
-                  <div className="bg-[#6841ea] text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5" />
-                    {activeCountdown}s
-                  </div>
-                  {/* Barra de progreso circular pequeña debajo */}
-                  <div className="w-8 h-1 bg-gray-600 rounded-full overflow-hidden absolute -bottom-3 left-1/2 -translate-x-1/2 w-14">
-                    <div
-                      className="h-full bg-[#6841ea] transition-all duration-1000 ease-linear"
-                      style={{ width: `${(activeCountdown / total) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            }
-
-            // Si está grabando pero sin countdown aún, mostrar indicador REC
-            return (
-              <div className="absolute -bottom-1 -right-1">
-                <div className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-pulse whitespace-nowrap">
-                  REC
-                </div>
-              </div>
-            );
-          })()}
       </div>
 
+      {/* Contador — FUERA del div del micrófono */}
+      {!isValidating &&
+        voskSilenceCountdown !== null &&
+        voskSilenceCountdown !== undefined && (
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="flex items-center gap-1.5 bg-[#6841ea] text-white text-xs font-bold px-3 py-1 rounded-full">
+              <Clock className="w-3 h-3" />
+              Enviando en {voskSilenceCountdown}s
+            </div>
+            <div className="w-24 h-1 bg-gray-600 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#6841ea] transition-all duration-1000 ease-linear"
+                style={{ width: `${(voskSilenceCountdown / 3) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
       <h4 className="text-sm sm:text-lg font-bold">
         {isValidating ? "Validando..." : "Escuchando..."}
       </h4>
@@ -642,7 +618,6 @@ export const ListeningExplanationStep: React.FC<{
             : "Por favor, explica cómo resolverás esta tarea."}
       </p>
 
-      {/* Indicador grabando (sin transcript aún) */}
       {!voiceTranscript && !isValidating && (
         <div
           className={`p-2.5 sm:p-4 rounded-lg border-2 border-dashed ${
@@ -675,16 +650,17 @@ export const ListeningExplanationStep: React.FC<{
         </div>
       )}
 
-      {/* Transcript */}
       {voiceTranscript && (
         <div
-          className={`p-2 sm:p-3 rounded text-left ${theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"}`}
+          className={`p-2 sm:p-3 rounded text-left ${
+            theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-100"
+          }`}
         >
           <p className="text-xs sm:text-sm">{voiceTranscript}</p>
           <p className="text-[10px] text-gray-500 mt-1">
             {isValidating
               ? "Validando con IA..."
-              : countdown !== null
+              : voskSilenceCountdown !== null
                 ? "Continúa hablando para cancelar el auto-envío"
                 : "Haz clic en un botón para continuar"}
           </p>
@@ -720,7 +696,6 @@ export const ListeningExplanationStep: React.FC<{
     </div>
   );
 };
-
 // ============================================
 // CONFIRMATION STEP
 // ============================================

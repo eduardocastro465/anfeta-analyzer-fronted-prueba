@@ -39,6 +39,7 @@ import {
   Check,
   Zap,
   Cpu,
+  CalendarX,
 } from "lucide-react";
 import { getDisplayName } from "@/util/utils-chat";
 import { useVoiceSynthesis } from "@/components/hooks/use-voice-synthesis";
@@ -1577,9 +1578,12 @@ export function ChatBot({
 
       console.log("data", data);
 
-      if (!data?.success || !data?.data?.revisionesPorActividad?.length) {
+      const tieneActividades = Array.isArray(data?.data?.revisionesPorActividad)
+        ? data.data.revisionesPorActividad.length > 0
+        : Object.keys(data?.data?.revisionesPorActividad ?? {}).length > 0;
+
+      if (!data?.success) {
         if (silentUpdate) {
-          console.log("silentUpdate", silentUpdate);
           toast({
             variant: "destructive",
             title: "Sin conexión",
@@ -1591,6 +1595,50 @@ export function ChatBot({
         throw new Error("Sin datos válidos");
       }
 
+      if (!tieneActividades) {
+        setStep("ready");
+        if (!silentUpdate) {
+          addMessage(
+            "bot",
+            <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-indigo-500/5 overflow-hidden">
+              <div className="px-4 py-3 flex items-center gap-2 border-b border-blue-500/15">
+                <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center flex-shrink-0">
+                  <CalendarX className="w-3.5 h-3.5 text-blue-400" />
+                </div>
+                <span className="text-sm font-medium text-blue-400">
+                  Sin actividades hoy
+                </span>
+                <div className="ml-auto">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    {new Date().toLocaleDateString("es-MX", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </div>
+              </div>
+              <div className="px-4 py-3 flex items-start gap-3">
+                <div className="flex flex-col gap-1">
+                  <p
+                    className={`text-sm leading-relaxed ${theme === "dark" ? "text-gray-300" : "text-gray-600"}`}
+                  >
+                    {data?.data?.answer ??
+                      "No tienes actividades registradas en horario laboral (9am–6pm)."}
+                  </p>
+                  <p
+                    className={`text-xs mt-1 ${theme === "dark" ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    Puedes registrar nuevas actividades o volver a consultar más
+                    tarde.
+                  </p>
+                </div>
+              </div>
+            </div>,
+          );
+        }
+        return;
+      }
       const colabs = extraerColaboradores(data);
       setColaboradoresUnicos(colabs);
       colaboradoresUnicosRef.current = colabs;
